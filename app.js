@@ -169,7 +169,13 @@ const SimplePage = () => {
                             <td class="px-4 py-3 font-medium text-gray-900">${p.name}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
                             <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
-                            <td class="px-4 py-3 text-center font-semibold ${p.status === 'behind' ? 'text-red-600' : 'text-gray-900'}">${p.progress}%</td>
+                            <td class="px-4 py-3">
+                                <div class="progress-bar h-6">
+                                    <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${Math.max(p.progress, 12)}%">
+                                        <span>${p.progress}%</span>
+                                    </div>
+                                </div>
+                            </td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2 text-xs text-gray-600 font-medium">
                                     <span class="w-16">${formatDate(p.startDate).split(',')[0]}</span>
@@ -218,7 +224,13 @@ const EditPage = () => `
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${p.owner}</td>
                             <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
-                            <td class="px-4 py-3 text-sm text-gray-700">${p.progress}%</td>
+                            <td class="px-4 py-3">
+                                <div class="progress-bar h-5">
+                                    <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${Math.max(p.progress, 15)}%">
+                                        <span class="text-xs">${p.progress}%</span>
+                                    </div>
+                                </div>
+                            </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${formatDate(p.startDate)} - ${formatDate(p.endDate)}</td>
                             <td class="px-4 py-3 text-right">
                                 <button onclick="openProjectModal('${p.id}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium mr-2">Edit</button>
