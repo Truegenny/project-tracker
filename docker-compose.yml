@@ -3,22 +3,32 @@ services:
     build: .
     container_name: project-tracker
     ports:
-      - "8085:80"
+      - "8085:3000"
     restart: unless-stopped
 
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-change-this-to-a-secure-random-string}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+
+    volumes:
+      - project-data:/data
+
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
       interval: 30s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
     labels:
-      - "com.project-tracker.description=Project Tracker Web Application"
-      - "com.project-tracker.version=1.0"
+      - "com.project-tracker.description=Ntiva Integration Project Tracker"
+      - "com.project-tracker.version=2.0"
 
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  project-data:

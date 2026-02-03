@@ -1,85 +1,54 @@
-# Project Tracker
+# Ntiva Integration Project Tracker
 
-A simple, elegant project tracking web application built with vanilla JavaScript and Tailwind CSS.
+A web application for tracking integration projects with timelines, progress tracking, and executive reporting.
 
 ## Features
 
-- Track multiple projects with timeline visualization
-- Project status management (On Track, Behind, Active, On Pause)
-- Timeline view with progress indicators
-- Export functionality (PDF support)
-- Responsive design
-- Local storage persistence
+- **User Authentication** - Secure login with JWT tokens
+- **Project Management** - Add, edit, delete projects with sub-tasks
+- **Status Tracking** - Discovery, Active, On Track, Behind, On Pause, Complete
+- **Timeline Visualization** - Visual timeline with TODAY marker
+- **Progress Tracking** - Percentage-based progress bars
+- **Auto-status Updates** - Behind when overdue, Complete at 100%
+- **Finished Archive** - Projects auto-archive 7 days after completion
+- **PDF Export** - Generate reports for executives
+- **Dark Mode** - Eye-friendly dark theme
+- **Admin Panel** - User management for admins
 
-## Technology Stack
+## Deployment
 
-- HTML5
-- Vanilla JavaScript
-- Tailwind CSS
-- Nginx (for serving)
+### Environment Variables
 
-## Docker Deployment
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | `change-this-...` | Secret key for JWT tokens (CHANGE IN PRODUCTION) |
+| `ADMIN_PASSWORD` | `admin123` | Initial admin password (CHANGE IN PRODUCTION) |
 
-This application is containerized and ready for deployment with Docker and Portainer.
-
-### Quick Start with Docker Compose
+### Docker Compose
 
 ```bash
 docker compose up -d
 ```
 
-The application will be available at `http://localhost:8080`
+Access at `http://localhost:8085`
 
-### Building the Docker Image
+### Default Login
 
-```bash
-docker build -t project-tracker:latest .
-```
+- **Username:** admin
+- **Password:** admin123 (or value of ADMIN_PASSWORD)
 
-### Running with Docker
+**Change the admin password after first login!**
 
-```bash
-docker run -d -p 8080:80 --name project-tracker project-tracker:latest
-```
+## Data Persistence
 
-## Portainer Deployment
+Project data is stored in SQLite database at `/data/projects.db` inside the container. The `project-data` volume ensures data persists across container restarts.
 
-This project is optimized for Portainer stack deployment:
+## Security Notes
 
-1. In Portainer, navigate to Stacks
-2. Click "Add stack"
-3. Choose "Git Repository" or "Upload" the docker-compose.yml
-4. Deploy the stack
+1. Change `JWT_SECRET` to a long random string in production
+2. Change default admin password immediately
+3. Use HTTPS (configure at reverse proxy level)
+4. Regular backups of the `project-data` volume
 
-The docker-compose.yml includes:
-- Health checks for monitoring
-- Proper restart policies
-- Logging configuration
-- Portainer-friendly labels
-
-## Project Structure
-
-```
-project-tracker/
-├── index.html          # Main HTML file
-├── app.js             # Application logic
-├── Dockerfile         # Docker image configuration
-├── docker-compose.yml # Docker Compose configuration
-├── .dockerignore      # Docker build exclusions
-└── .gitignore         # Git exclusions
-```
-
-## Health Check
-
-The container includes a health check that pings the nginx server every 30 seconds to ensure the application is running properly.
-
-## Logging
-
-Logs are configured with:
-- JSON file driver
-- Maximum size: 10MB per file
-- Maximum 3 log files retained
-
-## License
-
-MIT
+---
+Designed by Justin Cronin | Built with Claude AI

@@ -1,19 +1,26 @@
-FROM nginx:alpine
+FROM node:20-alpine
 
 LABEL maintainer="project-tracker"
-LABEL description="Project Tracker - Static Web Application"
-LABEL version="1.0"
+LABEL description="Ntiva Integration Project Tracker"
+LABEL version="2.0"
 
-# Install git for auto-update on restart
-RUN apk add --no-cache git
+WORKDIR /app
 
-# Copy entrypoint script
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Install dependencies
+COPY package.json ./
+RUN npm install --production
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+# Copy application files
+COPY server.js ./
+COPY public ./public
 
-EXPOSE 80
+# Create data directory
+RUN mkdir -p /data
 
-ENTRYPOINT ["/entrypoint.sh"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]
