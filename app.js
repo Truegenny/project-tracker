@@ -41,7 +41,7 @@ const sortByBehindFirst = (arr) => [...arr].sort((a, b) => (a.status === 'behind
 const Header = () => `
     <header class="bg-white shadow-sm border-b border-gray-200 no-print">
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-gray-900">Project Tracker</h1>
+            <h1 class="text-2xl font-bold text-gray-900">Ntiva Integration Project Tracker <span class="text-sm font-normal text-blue-600">Beta</span></h1>
             <nav class="flex gap-2">
                 <button onclick="switchView('simple')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Simple</button>
                 <button onclick="switchView('overview')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'overview' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Overview</button>
