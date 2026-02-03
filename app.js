@@ -7,6 +7,18 @@ let darkMode = localStorage.getItem('darkMode') === 'true';
 // Apply dark mode on load
 if (darkMode) document.body.classList.add('dark');
 
+// Auto-update statuses on load
+const updateAllStatuses = () => {
+    let changed = false;
+    projects.forEach(p => {
+        const oldStatus = p.status;
+        autoUpdateStatus(p);
+        if (oldStatus !== p.status) changed = true;
+    });
+    if (changed) saveProjects();
+};
+
+
 const saveProjects = () => localStorage.setItem('projects', JSON.stringify(projects));
 
 // Utility Functions
@@ -28,7 +40,8 @@ const getStatusColor = (status) => ({
     'behind': 'bg-red-500',
     'active': 'bg-blue-500',
     'on-pause': 'bg-amber-500',
-    'discovery': 'bg-purple-500'
+    'discovery': 'bg-purple-500',
+    'complete': 'bg-gray-500'
 }[status] || 'bg-gray-500');
 
 const getStatusBg = (status) => ({
@@ -36,8 +49,19 @@ const getStatusBg = (status) => ({
     'behind': 'bg-red-100 text-red-800',
     'active': 'bg-blue-100 text-blue-800',
     'on-pause': 'bg-amber-100 text-amber-800',
-    'discovery': 'bg-purple-100 text-purple-800'
+    'discovery': 'bg-purple-100 text-purple-800',
+    'complete': 'bg-gray-200 text-gray-700'
 }[status] || 'bg-gray-100 text-gray-800');
+
+const autoUpdateStatus = (project) => {
+    const isPastDue = new Date() > new Date(project.endDate);
+    if (project.progress >= 100) {
+        project.status = 'complete';
+    } else if (isPastDue && project.status !== 'on-pause') {
+        project.status = 'behind';
+    }
+    return project;
+};
 
 const sortByBehindFirst = (arr) => [...arr].sort((a, b) => (a.status === 'behind' ? -1 : b.status === 'behind' ? 1 : 0));
 
@@ -297,6 +321,7 @@ const ProjectModal = (project = null) => `
                             <option value="on-track" ${project?.status === 'on-track' ? 'selected' : ''}>On Track</option>
                             <option value="behind" ${project?.status === 'behind' ? 'selected' : ''}>Behind</option>
                             <option value="on-pause" ${project?.status === 'on-pause' ? 'selected' : ''}>On Pause</option>
+                            <option value="complete" ${project?.status === 'complete' ? 'selected' : ''}>Complete</option>
                         </select>
                     </div>
                     <div>
@@ -332,6 +357,7 @@ const ProjectModal = (project = null) => `
 
 // Functions
 function render() {
+    updateAllStatuses();
     const pages = { simple: SimplePage, overview: OverviewPage, edit: EditPage };
     document.getElementById('app').innerHTML = Header() + (pages[currentView] || OverviewPage)();
 }
