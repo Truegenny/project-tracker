@@ -383,6 +383,11 @@ const ProjectModal = (project = null) => `
                     </div>
                 </div>
 
+                <div class="flex items-center gap-2 pt-2">
+                    <input type="checkbox" id="forceFinish" ${project && isFinished(project) ? 'checked' : ''} class="rounded">
+                    <label for="forceFinish" class="text-sm text-gray-700">Move to Finished tab</label>
+                </div>
+
                 <div class="border-t pt-4 mt-4">
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-sm font-medium text-gray-700">Sub-tasks</label>
@@ -461,6 +466,9 @@ function saveProject(e) {
         completed: row.querySelector('.task-completed').checked
     })).filter(t => t.name.trim());
 
+    const forceFinish = document.getElementById('forceFinish').checked;
+    const existingProject = id ? projects.find(p => p.id === id) : null;
+
     const projectData = {
         id: id || generateId(),
         name: document.getElementById('projectName').value,
@@ -469,8 +477,9 @@ function saveProject(e) {
         team: document.getElementById('projectTeam').value,
         startDate: document.getElementById('projectStart').value,
         endDate: document.getElementById('projectEnd').value,
-        status: document.getElementById('projectStatus').value,
-        progress: parseInt(document.getElementById('projectProgress').value) || 0,
+        status: forceFinish ? 'complete' : document.getElementById('projectStatus').value,
+        progress: forceFinish ? 100 : (parseInt(document.getElementById('projectProgress').value) || 0),
+        completedDate: forceFinish ? new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString() : (existingProject?.completedDate || null),
         tasks
     };
 
