@@ -80,15 +80,19 @@ const ProjectCard = (project) => {
             </div>
 
             <!-- Timeline -->
-            <div class="mb-5 pt-4">
-                <div class="flex justify-between text-xs text-gray-600 mb-2 font-medium">
-                    <span>${formatDate(project.startDate)}</span>
-                    <span class="text-gray-500">${daysRemaining > 0 ? daysRemaining + ' days remaining' : 'OVERDUE'}</span>
-                    <span>${formatDate(project.endDate)}</span>
+            <div class="mb-6 pt-2">
+                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                    <span></span>
+                    <span>${daysRemaining > 0 ? daysRemaining + ' days remaining' : 'OVERDUE'}</span>
+                    <span></span>
                 </div>
-                <div class="timeline-bar">
-                    <div class="timeline-progress ${getStatusColor(project.status)}" style="width: ${timelineProgress}%"></div>
-                    <div class="timeline-today" style="left: ${timelineProgress}%"></div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-600 font-medium w-20">${formatDate(project.startDate)}</span>
+                    <div class="timeline-bar flex-1">
+                        <div class="timeline-progress ${getStatusColor(project.status)}" style="width: ${timelineProgress}%"></div>
+                        <div class="timeline-today" style="left: ${timelineProgress}%"></div>
+                    </div>
+                    <span class="text-xs text-gray-600 font-medium w-20 text-right">${formatDate(project.endDate)}</span>
                 </div>
             </div>
 
