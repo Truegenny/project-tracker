@@ -2,7 +2,7 @@ FROM node:20-alpine
 
 LABEL maintainer="project-tracker"
 LABEL description="Ntiva Integration Project Tracker"
-LABEL version="2.0"
+LABEL version="2.0.0"
 
 WORKDIR /app
 
