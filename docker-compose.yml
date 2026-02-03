@@ -1,8 +1,10 @@
 services:
   project-tracker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: project-tracker:2.0.0
-    container_name: project-tracker
+    container_name: project-tracker-v2
     ports:
       - "8085:3000"
     restart: unless-stopped
