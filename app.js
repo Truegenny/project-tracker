@@ -23,15 +23,19 @@ const getStatusColor = (status) => ({
     'on-track': 'bg-emerald-500',
     'behind': 'bg-red-500',
     'active': 'bg-blue-500',
-    'on-pause': 'bg-amber-500'
+    'on-pause': 'bg-amber-500',
+    'discovery': 'bg-purple-500'
 }[status] || 'bg-gray-500');
 
 const getStatusBg = (status) => ({
     'on-track': 'bg-emerald-100 text-emerald-800',
     'behind': 'bg-red-100 text-red-800',
     'active': 'bg-blue-100 text-blue-800',
-    'on-pause': 'bg-amber-100 text-amber-800'
+    'on-pause': 'bg-amber-100 text-amber-800',
+    'discovery': 'bg-purple-100 text-purple-800'
 }[status] || 'bg-gray-100 text-gray-800');
+
+const sortByBehindFirst = (arr) => [...arr].sort((a, b) => (a.status === 'behind' ? -1 : b.status === 'behind' ? 1 : 0));
 
 // Components
 const Header = () => `
@@ -39,6 +43,7 @@ const Header = () => `
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <h1 class="text-2xl font-bold text-gray-900">Project Tracker</h1>
             <nav class="flex gap-2">
+                <button onclick="switchView('simple')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Simple</button>
                 <button onclick="switchView('overview')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'overview' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Overview</button>
                 <button onclick="switchView('edit')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'edit' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Edit Projects</button>
                 <button onclick="exportPDF()" class="px-4 py-2 rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition">Export PDF</button>
@@ -132,6 +137,58 @@ const OverviewPage = () => `
     </div>
 `;
 
+const SimplePage = () => {
+    const sorted = sortByBehindFirst(projects);
+    return `
+    <div id="export-content" class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold text-gray-900">Simplified Overview</h2>
+            <p class="text-gray-500 text-sm">${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+        </div>
+        ${projects.length === 0 ? `
+            <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
+                <p class="text-gray-500">No projects yet.</p>
+            </div>
+        ` : `
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Owner</th>
+                        <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
+                        <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Progress</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-1/3">Timeline</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    ${sorted.map(p => {
+                        const timelinePos = getTimelineProgress(p.startDate, p.endDate);
+                        const daysLeft = daysBetween(new Date(), p.endDate);
+                        return `
+                        <tr class="${p.status === 'behind' ? 'bg-red-50' : ''}">
+                            <td class="px-4 py-3 font-medium text-gray-900">${p.name}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
+                            <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
+                            <td class="px-4 py-3 text-center font-semibold ${p.status === 'behind' ? 'text-red-600' : 'text-gray-900'}">${p.progress}%</td>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2 text-xs text-gray-500">
+                                    <span>${formatDate(p.startDate).split(',')[0]}</span>
+                                    <div class="flex-1 timeline-bar">
+                                        <div class="timeline-progress ${getStatusColor(p.status)}" style="width: ${p.progress}%"></div>
+                                        <div class="timeline-today" style="left: ${timelinePos}%"></div>
+                                    </div>
+                                    <span>${formatDate(p.endDate).split(',')[0]}</span>
+                                </div>
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>`}
+    </div>`;
+};
+
 const EditPage = () => `
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
@@ -213,6 +270,7 @@ const ProjectModal = (project = null) => `
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                         <select id="projectStatus" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="discovery" ${project?.status === 'discovery' ? 'selected' : ''}>Discovery</option>
                             <option value="active" ${project?.status === 'active' ? 'selected' : ''}>Active</option>
                             <option value="on-track" ${project?.status === 'on-track' ? 'selected' : ''}>On Track</option>
                             <option value="behind" ${project?.status === 'behind' ? 'selected' : ''}>Behind</option>
@@ -252,7 +310,8 @@ const ProjectModal = (project = null) => `
 
 // Functions
 function render() {
-    document.getElementById('app').innerHTML = Header() + (currentView === 'overview' ? OverviewPage() : EditPage());
+    const pages = { simple: SimplePage, overview: OverviewPage, edit: EditPage };
+    document.getElementById('app').innerHTML = Header() + (pages[currentView] || OverviewPage)();
 }
 
 function switchView(view) {
@@ -330,7 +389,7 @@ function deleteProject(id) {
 async function exportPDF() {
     const { jsPDF } = window.jspdf;
     const content = document.getElementById('export-content');
-    if (!content) { alert('Switch to Overview to export'); return; }
+    if (!content) { alert('Switch to Simple or Overview to export'); return; }
 
     // Expand all dropdowns for export
     document.querySelectorAll('.dropdown-content').forEach(el => el.classList.add('open'));
