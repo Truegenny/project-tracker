@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  project-tracker:
+    build: .
+    image: project-tracker:latest
+    container_name: project-tracker
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    # Portainer labels for better organization
+    labels:
+      - "com.project-tracker.description=Project Tracker Web Application"
+      - "com.project-tracker.version=1.0"
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

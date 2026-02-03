@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        .status-on-track { background: #10b981; }
+        .status-behind { background: #ef4444; }
+        .status-active { background: #3b82f6; }
+        .status-on-pause { background: #f59e0b; }
+        .timeline-bar { position: relative; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+        .timeline-progress { position: absolute; left: 0; top: 0; height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .timeline-today { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #ef4444; z-index: 10; }
+        .dropdown-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .dropdown-content.open { max-height: 500px; }
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="app"></div>
+    <script src="app.js"></script>
+</body>
+</html>
