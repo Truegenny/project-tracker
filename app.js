@@ -61,6 +61,7 @@ const ProjectCard = (project) => {
     const timelineProgress = getTimelineProgress(project.startDate, project.endDate);
     const totalDays = daysBetween(project.startDate, project.endDate);
     const daysRemaining = daysBetween(new Date(), project.endDate);
+    const hasStarted = new Date() >= new Date(project.startDate);
 
     return `
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4" data-project-id="${project.id}">
@@ -90,7 +91,7 @@ const ProjectCard = (project) => {
                     <span class="text-xs text-gray-600 font-medium w-20">${formatDate(project.startDate)}</span>
                     <div class="timeline-bar flex-1">
                         <div class="timeline-progress ${getStatusColor(project.status)}" style="width: ${timelineProgress}%"></div>
-                        <div class="timeline-today" style="left: ${timelineProgress}%"></div>
+                        ${hasStarted ? `<div class="timeline-today" style="left: ${timelineProgress}%"></div>` : ''}
                     </div>
                     <span class="text-xs text-gray-600 font-medium w-20 text-right">${formatDate(project.endDate)}</span>
                 </div>
@@ -173,6 +174,7 @@ const SimplePage = () => {
                     ${sorted.map(p => {
                         const timelinePos = getTimelineProgress(p.startDate, p.endDate);
                         const daysLeft = daysBetween(new Date(), p.endDate);
+                        const started = new Date() >= new Date(p.startDate);
                         return `
                         <tr class="${p.status === 'behind' ? 'bg-red-50' : ''}">
                             <td class="px-4 py-3 font-medium text-gray-900">${p.name}</td>
@@ -190,7 +192,7 @@ const SimplePage = () => {
                                     <span class="w-16">${formatDate(p.startDate).split(',')[0]}</span>
                                     <div class="flex-1 h-5 bg-gray-100 border border-gray-300 relative">
                                         <div class="${getStatusColor(p.status)} h-full opacity-30" style="width: ${timelinePos}%"></div>
-                                        <div class="absolute top-0 bottom-0 w-0.5 bg-red-600" style="left: ${timelinePos}%"></div>
+                                        ${started ? `<div class="absolute top-0 bottom-0 w-0.5 bg-red-600" style="left: ${timelinePos}%"></div>` : ''}
                                     </div>
                                     <span class="w-16 text-right">${formatDate(p.endDate).split(',')[0]}</span>
                                 </div>
