@@ -41,7 +41,7 @@ const getStatusColor = (status) => ({
     'active': 'bg-blue-500',
     'on-pause': 'bg-amber-500',
     'discovery': 'bg-purple-500',
-    'complete': 'bg-gray-500'
+    'complete': 'bg-green-600'
 }[status] || 'bg-gray-500');
 
 const getStatusBg = (status) => ({
@@ -50,18 +50,30 @@ const getStatusBg = (status) => ({
     'active': 'bg-blue-100 text-blue-800',
     'on-pause': 'bg-amber-100 text-amber-800',
     'discovery': 'bg-purple-100 text-purple-800',
-    'complete': 'bg-gray-200 text-gray-700'
+    'complete': 'bg-green-100 text-green-800'
 }[status] || 'bg-gray-100 text-gray-800');
 
 const autoUpdateStatus = (project) => {
     const isPastDue = new Date() > new Date(project.endDate);
-    if (project.progress >= 100) {
+    if (project.progress >= 100 && project.status !== 'complete') {
         project.status = 'complete';
-    } else if (isPastDue && project.status !== 'on-pause') {
+        project.completedDate = new Date().toISOString();
+    } else if (project.progress < 100 && project.status === 'complete') {
+        project.completedDate = null;
+    } else if (isPastDue && project.status !== 'on-pause' && project.status !== 'complete') {
         project.status = 'behind';
     }
     return project;
 };
+
+const isFinished = (project) => {
+    if (project.status !== 'complete' || !project.completedDate) return false;
+    const daysSinceComplete = daysBetween(project.completedDate, new Date());
+    return daysSinceComplete >= 7;
+};
+
+const activeProjects = () => projects.filter(p => !isFinished(p));
+const finishedProjects = () => projects.filter(p => isFinished(p));
 
 const sortByBehindFirst = (arr) => [...arr].sort((a, b) => (a.status === 'behind' ? -1 : b.status === 'behind' ? 1 : 0));
 
@@ -74,6 +86,7 @@ const Header = () => `
                 <button onclick="switchView('simple')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Simple</button>
                 <button onclick="switchView('overview')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'overview' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Overview</button>
                 <button onclick="switchView('edit')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'edit' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Edit Projects</button>
+                <button onclick="switchView('finished')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'finished' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Finished</button>
                 <button onclick="exportPDF()" class="px-4 py-2 rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition">Export PDF</button>
                 <button onclick="toggleDarkMode()" class="px-3 py-2 rounded-lg font-medium bg-gray-700 text-white hover:bg-gray-800 transition">${darkMode ? '☀️' : '🌙'}</button>
             </nav>
@@ -156,31 +169,33 @@ const ProjectCard = (project) => {
     `;
 };
 
-const OverviewPage = () => `
+const OverviewPage = () => {
+    const active = activeProjects();
+    return `
     <div id="export-content" class="max-w-7xl mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-semibold text-gray-900">Project Overview</h2>
             <p class="text-gray-500 text-sm">Last updated: ${new Date().toLocaleString()}</p>
         </div>
-        ${projects.length === 0 ? `
+        ${active.length === 0 ? `
             <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
-                <p class="text-gray-500">No projects yet. Go to Edit Projects to add one.</p>
+                <p class="text-gray-500">No active projects.</p>
             </div>
-        ` : projects.map(ProjectCard).join('')}
-    </div>
-`;
+        ` : active.map(ProjectCard).join('')}
+    </div>`;
+};
 
 const SimplePage = () => {
-    const sorted = sortByBehindFirst(projects);
+    const sorted = sortByBehindFirst(activeProjects());
     return `
     <div id="export-content" class="max-w-7xl mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-semibold text-gray-900">Simplified Overview</h2>
             <p class="text-gray-500 text-sm">${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
         </div>
-        ${projects.length === 0 ? `
+        ${sorted.length === 0 ? `
             <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
-                <p class="text-gray-500">No projects yet.</p>
+                <p class="text-gray-500">No active projects.</p>
             </div>
         ` : `
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -223,6 +238,44 @@ const SimplePage = () => {
                             </td>
                         </tr>`;
                     }).join('')}
+                </tbody>
+            </table>
+        </div>`}
+    </div>`;
+};
+
+const FinishedPage = () => {
+    const finished = finishedProjects();
+    return `
+    <div id="export-content" class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold text-gray-900">Finished Projects</h2>
+            <p class="text-gray-500 text-sm">${finished.length} completed</p>
+        </div>
+        ${finished.length === 0 ? `
+            <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
+                <p class="text-gray-500">No finished projects yet. Projects move here 7 days after completion.</p>
+            </div>
+        ` : `
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Owner</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Completed</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Duration</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    ${finished.map(p => `
+                        <tr>
+                            <td class="px-4 py-3 font-medium text-gray-900">${p.name}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${formatDate(p.completedDate)}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${daysBetween(p.startDate, p.endDate)} days</td>
+                        </tr>
+                    `).join('')}
                 </tbody>
             </table>
         </div>`}
@@ -358,7 +411,7 @@ const ProjectModal = (project = null) => `
 // Functions
 function render() {
     updateAllStatuses();
-    const pages = { simple: SimplePage, overview: OverviewPage, edit: EditPage };
+    const pages = { simple: SimplePage, overview: OverviewPage, edit: EditPage, finished: FinishedPage };
     document.getElementById('app').innerHTML = Header() + (pages[currentView] || OverviewPage)();
 }
 
