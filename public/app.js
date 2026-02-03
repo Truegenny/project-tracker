@@ -362,6 +362,7 @@ const FinishedPage = () => {
                         <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Owner</th>
                         <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Completed</th>
                         <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Duration</th>
+                        <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -371,6 +372,9 @@ const FinishedPage = () => {
                             <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">${formatDate(p.completedDate)}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">${daysBetween(p.startDate, p.endDate)} days</td>
+                            <td class="px-4 py-3 text-right">
+                                <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
+                            </td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -627,7 +631,7 @@ async function saveProject(e) {
         endDate: document.getElementById('projectEnd').value,
         status: forceFinish ? 'complete' : document.getElementById('projectStatus').value,
         progress: forceFinish ? 100 : (parseInt(document.getElementById('projectProgress').value) || 0),
-        completedDate: forceFinish ? new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString() : (existingProject?.completedDate || null),
+        completedDate: forceFinish ? new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString() : null,
         tasks
     };
 
