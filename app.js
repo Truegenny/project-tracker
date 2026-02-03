@@ -490,7 +490,7 @@ function showInfo() {
                     </ul>
 
                     <div class="pt-4 border-t text-xs text-gray-400">
-                        <p>Designed & Built with Claude AI</p>
+                        <p>Designed by Justin Cronin | Built with Claude AI</p>
                         <p>Version 1.0 | Data stored locally in browser</p>
                     </div>
                 </div>
