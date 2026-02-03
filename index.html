@@ -14,9 +14,16 @@
         .status-behind { background: #ef4444; }
         .status-active { background: #3b82f6; }
         .status-on-pause { background: #f59e0b; }
-        .timeline-bar { position: relative; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
-        .timeline-progress { position: absolute; left: 0; top: 0; height: 100%; border-radius: 4px; transition: width 0.3s; }
-        .timeline-today { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #ef4444; z-index: 10; }
+        /* Timeline bar - boxy design */
+        .timeline-bar { position: relative; height: 24px; background: #f3f4f6; border: 1px solid #d1d5db; }
+        .timeline-progress { position: absolute; left: 0; top: 0; height: 100%; opacity: 0.3; }
+        .timeline-today { position: absolute; top: -8px; bottom: -8px; width: 3px; background: #dc2626; z-index: 10; box-shadow: 0 0 6px rgba(220,38,38,0.5); }
+        .timeline-today::before { content: ''; position: absolute; top: -6px; left: -4px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #dc2626; }
+        .timeline-today::after { content: 'TODAY'; position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 9px; font-weight: 700; color: #dc2626; white-space: nowrap; }
+        /* Progress bar - boxy design */
+        .progress-bar { height: 28px; background: #f3f4f6; border: 1px solid #d1d5db; position: relative; }
+        .progress-fill { height: 100%; transition: width 0.3s; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
+        .progress-fill span { color: white; font-weight: 600; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
         .dropdown-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
         .dropdown-content.open { max-height: 500px; }
         @media print { .no-print { display: none !important; } }

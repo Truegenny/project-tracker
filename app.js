@@ -75,26 +75,25 @@ const ProjectCard = (project) => {
             </div>
 
             <!-- Timeline -->
-            <div class="mb-4">
-                <div class="flex justify-between text-xs text-gray-500 mb-1">
+            <div class="mb-5 pt-4">
+                <div class="flex justify-between text-xs text-gray-600 mb-2 font-medium">
                     <span>${formatDate(project.startDate)}</span>
-                    <span>${daysRemaining > 0 ? daysRemaining + ' days remaining' : 'Overdue'}</span>
+                    <span class="text-gray-500">${daysRemaining > 0 ? daysRemaining + ' days remaining' : 'OVERDUE'}</span>
                     <span>${formatDate(project.endDate)}</span>
                 </div>
                 <div class="timeline-bar">
-                    <div class="timeline-progress ${getStatusColor(project.status)}" style="width: ${project.progress}%"></div>
-                    <div class="timeline-today" style="left: ${timelineProgress}%" title="Today"></div>
+                    <div class="timeline-progress ${getStatusColor(project.status)}" style="width: ${timelineProgress}%"></div>
+                    <div class="timeline-today" style="left: ${timelineProgress}%"></div>
                 </div>
             </div>
 
             <!-- Progress Bar -->
             <div class="mb-4">
-                <div class="flex justify-between text-sm mb-1">
-                    <span class="text-gray-600">Progress</span>
-                    <span class="font-medium">${project.progress}%</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div class="${getStatusColor(project.status)} h-2.5 rounded-full transition-all" style="width: ${project.progress}%"></div>
+                <div class="text-sm text-gray-600 mb-2 font-medium">Progress</div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${getStatusColor(project.status)}" style="width: ${Math.max(project.progress, 8)}%">
+                        <span>${project.progress}%</span>
+                    </div>
                 </div>
             </div>
 
@@ -172,13 +171,13 @@ const SimplePage = () => {
                             <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3 text-center font-semibold ${p.status === 'behind' ? 'text-red-600' : 'text-gray-900'}">${p.progress}%</td>
                             <td class="px-4 py-3">
-                                <div class="flex items-center gap-2 text-xs text-gray-500">
-                                    <span>${formatDate(p.startDate).split(',')[0]}</span>
-                                    <div class="flex-1 timeline-bar">
-                                        <div class="timeline-progress ${getStatusColor(p.status)}" style="width: ${p.progress}%"></div>
-                                        <div class="timeline-today" style="left: ${timelinePos}%"></div>
+                                <div class="flex items-center gap-2 text-xs text-gray-600 font-medium">
+                                    <span class="w-16">${formatDate(p.startDate).split(',')[0]}</span>
+                                    <div class="flex-1 h-5 bg-gray-100 border border-gray-300 relative">
+                                        <div class="${getStatusColor(p.status)} h-full opacity-30" style="width: ${timelinePos}%"></div>
+                                        <div class="absolute top-0 bottom-0 w-0.5 bg-red-600" style="left: ${timelinePos}%"></div>
                                     </div>
-                                    <span>${formatDate(p.endDate).split(',')[0]}</span>
+                                    <span class="w-16 text-right">${formatDate(p.endDate).split(',')[0]}</span>
                                 </div>
                             </td>
                         </tr>`;
