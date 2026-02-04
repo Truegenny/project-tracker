@@ -71,6 +71,14 @@ try {
   // Index might already exist
 }
 
+// Migration: Add notes column if it doesn't exist
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN notes TEXT DEFAULT '[]'");
+  console.log('Migration: Added notes column to projects table');
+} catch (e) {
+  // Column already exists, ignore
+}
+
 // Create default admin user if not exists
 const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
 if (!adminExists) {
@@ -231,18 +239,18 @@ app.get('/api/projects', authenticate, (req, res) => {
     projects = db.prepare('SELECT * FROM projects WHERE userId = ? ORDER BY createdAt DESC').all(req.user.id);
   }
 
-  res.json(projects.map(p => ({ ...p, tasks: JSON.parse(p.tasks || '[]') })));
+  res.json(projects.map(p => ({ ...p, tasks: JSON.parse(p.tasks || '[]'), notes: JSON.parse(p.notes || '[]') })));
 });
 
 app.post('/api/projects', authenticate, (req, res) => {
-  const { name, description, owner, team, startDate, endDate, status, progress, tasks, completedDate, workspaceId } = req.body;
+  const { name, description, owner, team, startDate, endDate, status, progress, tasks, notes, completedDate, workspaceId } = req.body;
   if (!name || !owner || !startDate || !endDate) return res.status(400).json({ error: 'Missing required fields' });
 
   const odid = Date.now().toString(36) + Math.random().toString(36).substr(2);
   const result = db.prepare(`
-    INSERT INTO projects (odid, userId, workspaceId, name, description, owner, team, startDate, endDate, status, progress, tasks, completedDate)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(odid, req.user.id, workspaceId || null, name, description || '', owner, team || '', startDate, endDate, status || 'active', progress || 0, JSON.stringify(tasks || []), completedDate || null);
+    INSERT INTO projects (odid, userId, workspaceId, name, description, owner, team, startDate, endDate, status, progress, tasks, notes, completedDate)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(odid, req.user.id, workspaceId || null, name, description || '', owner, team || '', startDate, endDate, status || 'active', progress || 0, JSON.stringify(tasks || []), JSON.stringify(notes || []), completedDate || null);
 
   res.json({ id: odid, success: true });
 });
@@ -251,11 +259,11 @@ app.put('/api/projects/:id', authenticate, (req, res) => {
   const project = db.prepare('SELECT * FROM projects WHERE odid = ? AND userId = ?').get(req.params.id, req.user.id);
   if (!project) return res.status(404).json({ error: 'Project not found' });
 
-  const { name, description, owner, team, startDate, endDate, status, progress, tasks, completedDate } = req.body;
+  const { name, description, owner, team, startDate, endDate, status, progress, tasks, notes, completedDate } = req.body;
   db.prepare(`
-    UPDATE projects SET name = ?, description = ?, owner = ?, team = ?, startDate = ?, endDate = ?, status = ?, progress = ?, tasks = ?, completedDate = ?, updatedAt = CURRENT_TIMESTAMP
+    UPDATE projects SET name = ?, description = ?, owner = ?, team = ?, startDate = ?, endDate = ?, status = ?, progress = ?, tasks = ?, notes = ?, completedDate = ?, updatedAt = CURRENT_TIMESTAMP
     WHERE odid = ? AND userId = ?
-  `).run(name, description || '', owner, team || '', startDate, endDate, status, progress, JSON.stringify(tasks || []), completedDate || null, req.params.id, req.user.id);
+  `).run(name, description || '', owner, team || '', startDate, endDate, status, progress, JSON.stringify(tasks || []), JSON.stringify(notes || []), completedDate || null, req.params.id, req.user.id);
 
   res.json({ success: true });
 });

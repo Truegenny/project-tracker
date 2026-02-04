@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.5.1';
+const APP_VERSION = '2.6.0';
 
 // State Management
 let projects = [];
@@ -335,6 +335,26 @@ const ProjectCard = (project) => {
                     </div>
                 </div>
             ` : ''}
+            ${project.notes && project.notes.length > 0 ? `
+                <div class="${project.tasks && project.tasks.length > 0 ? 'pt-4' : 'border-t pt-4'}">
+                    <button onclick="toggleNotes('${pid}')" class="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900">
+                        <svg class="w-4 h-4 transition-transform" id="notes-arrow-${pid}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                        Notes (${project.notes.length})
+                    </button>
+                    <div class="dropdown-content mt-2" id="notes-${pid}">
+                        <div class="space-y-3 pl-6">
+                            ${project.notes.map(note => `
+                                <div class="bg-gray-50 rounded-lg p-3">
+                                    <div class="text-xs text-gray-400 mb-1">${new Date(note.timestamp).toLocaleString()}</div>
+                                    <div class="text-sm text-gray-700 whitespace-pre-wrap">${note.text}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
         </div>
     `;
 };
@@ -623,6 +643,24 @@ const ProjectModal = (project = null) => `
                         `).join('')}
                     </div>
                 </div>
+                <div class="border-t pt-4 mt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-sm font-medium text-gray-700">Notes</label>
+                        <button type="button" onclick="addNoteField()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Note</button>
+                    </div>
+                    <div id="notesList" class="space-y-2">
+                        ${(project?.notes || []).map(n => `
+                            <div class="note-row bg-gray-50 rounded-lg p-3">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="text-xs text-gray-400">${new Date(n.timestamp).toLocaleString()}</span>
+                                    <button type="button" onclick="this.closest('.note-row').remove()" class="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                                </div>
+                                <textarea class="note-text w-full px-2 py-1 border border-gray-300 rounded text-sm" rows="2">${n.text}</textarea>
+                                <input type="hidden" class="note-timestamp" value="${n.timestamp}">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
                 <div class="flex justify-end gap-3 pt-4 border-t">
                     <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Project</button>
@@ -889,6 +927,13 @@ function toggleTasks(projectId) {
     if (arrow) arrow.style.transform = content?.classList.contains('open') ? 'rotate(180deg)' : '';
 }
 
+function toggleNotes(projectId) {
+    const content = document.getElementById(`notes-${projectId}`);
+    const arrow = document.getElementById(`notes-arrow-${projectId}`);
+    if (content) content.classList.toggle('open');
+    if (arrow) arrow.style.transform = content?.classList.contains('open') ? 'rotate(180deg)' : '';
+}
+
 function openProjectModal(projectId = null) {
     const project = projectId ? projects.find(p => p.odid === projectId) : null;
     document.body.insertAdjacentHTML('beforeend', ProjectModal(project));
@@ -908,6 +953,20 @@ function addTaskField() {
     `);
 }
 
+function addNoteField() {
+    const timestamp = new Date().toISOString();
+    document.getElementById('notesList').insertAdjacentHTML('afterbegin', `
+        <div class="note-row bg-gray-50 rounded-lg p-3">
+            <div class="flex justify-between items-start mb-1">
+                <span class="text-xs text-gray-400">${new Date(timestamp).toLocaleString()}</span>
+                <button type="button" onclick="this.closest('.note-row').remove()" class="text-red-500 hover:text-red-700 text-xs">Remove</button>
+            </div>
+            <textarea class="note-text w-full px-2 py-1 border border-gray-300 rounded text-sm" rows="2" placeholder="Enter note..."></textarea>
+            <input type="hidden" class="note-timestamp" value="${timestamp}">
+        </div>
+    `);
+}
+
 async function saveProject(e) {
     e.preventDefault();
     const id = document.getElementById('projectId').value;
@@ -915,6 +974,11 @@ async function saveProject(e) {
         name: row.querySelector('.task-name').value,
         completed: row.querySelector('.task-completed').checked
     })).filter(t => t.name.trim());
+
+    const notes = Array.from(document.querySelectorAll('.note-row')).map(row => ({
+        text: row.querySelector('.note-text').value,
+        timestamp: row.querySelector('.note-timestamp').value
+    })).filter(n => n.text.trim());
 
     const forceFinish = document.getElementById('forceFinish').checked;
     const existingProject = id ? projects.find(p => p.odid === id) : null;
@@ -929,7 +993,8 @@ async function saveProject(e) {
         status: forceFinish ? 'complete' : document.getElementById('projectStatus').value,
         progress: forceFinish ? 100 : (parseInt(document.getElementById('projectProgress').value) || 0),
         completedDate: forceFinish ? new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString() : null,
-        tasks
+        tasks,
+        notes
     };
 
     try {
@@ -1111,6 +1176,14 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.6.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Added Notes feature to projects</li>
+                                    <li>Notes auto-timestamp on creation</li>
+                                    <li>View notes in collapsible dropdown on Overview</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.5.1 <span class="text-gray-400">- Feb 3, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
