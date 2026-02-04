@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.9.2';
+const APP_VERSION = '2.10.0';
 
 // State Management
 let projects = [];
@@ -212,7 +212,9 @@ function getActionColor(action) {
         'NOTE_ADDED': 'bg-indigo-100 text-indigo-800',
         'TASK_CHANGE': 'bg-yellow-100 text-yellow-800',
         'DELETE': 'bg-red-100 text-red-800',
-        'REACTIVATE': 'bg-emerald-100 text-emerald-800'
+        'REACTIVATE': 'bg-emerald-100 text-emerald-800',
+        'LINK': 'bg-fuchsia-100 text-fuchsia-800',
+        'UNLINK': 'bg-pink-100 text-pink-800'
     };
     return colors[action] || 'bg-gray-100 text-gray-800';
 }
@@ -267,6 +269,12 @@ function formatAuditEntry(entry) {
         case 'REACTIVATE':
             description = 'reactivated project';
             break;
+        case 'LINK':
+            description = `synced to workspace "${changes?.targetWorkspace || 'Unknown'}"`;
+            break;
+        case 'UNLINK':
+            description = `unsynced from workspace "${changes?.targetWorkspace || 'Unknown'}"`;
+            break;
         default:
             description = entry.action.toLowerCase().replace('_', ' ');
     }
@@ -284,6 +292,153 @@ function formatAuditEntry(entry) {
             </div>
         </div>
     `;
+}
+
+// Project Linking Functions
+async function loadLinkableWorkspaces(excludeWorkspaceId) {
+    try {
+        return await api(`/workspaces/linkable?exclude=${excludeWorkspaceId || ''}`);
+    } catch (err) {
+        console.error('Failed to load linkable workspaces:', err);
+        return [];
+    }
+}
+
+async function loadProjectLinks(projectOdid) {
+    try {
+        return await api(`/projects/${projectOdid}/links`);
+    } catch (err) {
+        console.error('Failed to load project links:', err);
+        return [];
+    }
+}
+
+async function linkProject(projectOdid, targetWorkspaceId) {
+    try {
+        await api(`/projects/${projectOdid}/link`, {
+            method: 'POST',
+            body: JSON.stringify({ workspaceId: targetWorkspaceId })
+        });
+        return true;
+    } catch (err) {
+        alert('Error: ' + err.message);
+        return false;
+    }
+}
+
+async function unlinkProject(projectOdid, workspaceId) {
+    try {
+        await api(`/projects/${projectOdid}/link/${workspaceId}`, { method: 'DELETE' });
+        return true;
+    } catch (err) {
+        alert('Error: ' + err.message);
+        return false;
+    }
+}
+
+async function showLinkModal(projectOdid) {
+    const project = projects.find(p => p.odid === projectOdid);
+    if (!project) return;
+
+    // Show loading modal
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                        <h3 class="text-lg font-semibold">Sync Project: ${project.name}</h3>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-1">Link this project to other workspaces for collaboration</p>
+                </div>
+                <div id="linkModalContent" class="p-6">
+                    <div class="flex justify-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    </div>
+                </div>
+                <div class="p-4 border-t flex justify-end">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Done</button>
+                </div>
+            </div>
+        </div>
+    `);
+
+    // Load data
+    const [linkableWorkspaces, existingLinks] = await Promise.all([
+        loadLinkableWorkspaces(project.workspaceId),
+        loadProjectLinks(projectOdid)
+    ]);
+
+    const linkedWorkspaceIds = existingLinks.map(l => l.workspaceId);
+    const availableWorkspaces = linkableWorkspaces.filter(w => !linkedWorkspaceIds.includes(w.id));
+
+    const contentEl = document.getElementById('linkModalContent');
+    contentEl.innerHTML = `
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Link to Workspace</label>
+                <div class="flex gap-2">
+                    <select id="linkWorkspaceSelect" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <option value="">Select workspace...</option>
+                        ${availableWorkspaces.map(w => `
+                            <option value="${w.id}">${w.name}${w.isOwner ? '' : ` (${w.ownerUsername})`}</option>
+                        `).join('')}
+                    </select>
+                    <button onclick="handleLinkProject('${projectOdid}')" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                    </button>
+                </div>
+                ${availableWorkspaces.length === 0 ? '<p class="text-xs text-gray-400 mt-1">No additional workspaces available to link</p>' : ''}
+            </div>
+            <div class="border-t pt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Currently Synced To</label>
+                <div id="linkedWorkspacesList" class="space-y-2">
+                    ${existingLinks.length === 0 ? `
+                        <p class="text-sm text-gray-500 italic">Not synced to any other workspaces</p>
+                    ` : existingLinks.map(link => `
+                        <div class="flex items-center justify-between p-3 bg-purple-50 rounded-lg" data-link-workspace="${link.workspaceId}">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                <span class="font-medium text-gray-700">${link.workspaceName}</span>
+                            </div>
+                            <button onclick="handleUnlinkProject('${projectOdid}', ${link.workspaceId})" class="text-red-500 hover:text-red-700 text-sm">Unlink</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function handleLinkProject(projectOdid) {
+    const workspaceId = document.getElementById('linkWorkspaceSelect').value;
+    if (!workspaceId) { alert('Please select a workspace'); return; }
+
+    const success = await linkProject(projectOdid, parseInt(workspaceId));
+    if (success) {
+        closeModal();
+        showLinkModal(projectOdid); // Refresh modal
+    }
+}
+
+async function handleUnlinkProject(projectOdid, workspaceId) {
+    if (!confirm('Unlink this project from the workspace?')) return;
+
+    const success = await unlinkProject(projectOdid, workspaceId);
+    if (success) {
+        // Remove from UI
+        document.querySelector(`[data-link-workspace="${workspaceId}"]`)?.remove();
+        // Check if list is empty
+        const list = document.getElementById('linkedWorkspacesList');
+        if (list && !list.querySelector('[data-link-workspace]')) {
+            list.innerHTML = '<p class="text-sm text-gray-500 italic">Not synced to any other workspaces</p>';
+        }
+        // Reload projects if we're viewing the workspace it was unlinked from
+        if (currentWorkspace?.id === workspaceId) {
+            await loadProjects();
+            render();
+        }
+    }
 }
 
 async function showAuditModal(projectOdid) {
@@ -576,24 +731,39 @@ const ProjectCard = (project) => {
     const pid = project.odid || project.id;
     const lastUpdatedDate = project.updatedAt ? formatDate(project.updatedAt) : formatDate(project.createdAt);
     const lastUpdatedBy = project.lastUpdatedBy || 'Unknown';
+    const canEdit = canEditWorkspace();
 
     return `
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4" data-project-id="${pid}">
+        <div class="bg-white rounded-xl shadow-sm border ${project.isLinked ? 'border-purple-300' : 'border-gray-200'} p-6 mb-4" data-project-id="${pid}">
             <div class="flex justify-between items-start mb-4">
                 <div>
-                    <h3 class="text-xl font-semibold text-gray-900">${project.name}</h3>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-xl font-semibold text-gray-900">${project.name}</h3>
+                        ${project.isLinked ? `
+                            <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full flex items-center gap-1" title="Synced from ${project.sourceWorkspaceName}">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                Synced
+                            </span>
+                        ` : ''}
+                    </div>
                     <p class="text-gray-500 text-sm mt-1">${project.description || ''}</p>
                 </div>
                 <div class="flex items-center gap-2">
+                    ${!project.isLinked && canEdit ? `
+                        <button onclick="showLinkModal('${pid}')" class="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="Sync to Other Workspaces">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                        </button>
+                    ` : ''}
                     <button onclick="showAuditModal('${pid}')" class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition" title="View History">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </button>
                     <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBg(project.status)}">${project.status.replace('-', ' ').toUpperCase()}</span>
                 </div>
             </div>
-            <div class="mb-4 text-xs text-gray-400 flex items-center gap-1">
+            <div class="mb-4 text-xs text-gray-400 flex items-center gap-1 flex-wrap">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 Last updated by <span class="font-medium text-gray-500">${lastUpdatedBy}</span> on ${lastUpdatedDate}
+                ${project.isLinked ? `<span class="ml-2 text-purple-500">• From ${project.sourceWorkspaceName}</span>` : ''}
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
                 <div><span class="text-gray-500">Owner:</span> <span class="font-medium">${project.owner}</span></div>
@@ -711,8 +881,13 @@ const OverviewPage = () => {
                         const lastUpdated = p.updatedAt ? formatDate(p.updatedAt) : formatDate(p.createdAt);
                         const updatedBy = p.lastUpdatedBy || 'Unknown';
                         return `
-                        <tr class="${p.status === 'behind' ? 'bg-red-50' : ''}">
-                            <td class="px-4 py-3 font-medium text-gray-900">${p.name}</td>
+                        <tr class="${p.status === 'behind' ? 'bg-red-50' : ''} ${p.isLinked ? 'border-l-2 border-l-purple-400' : ''}">
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-medium text-gray-900">${p.name}</span>
+                                    ${p.isLinked ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded" title="From ${p.sourceWorkspaceName}">Synced</span>` : ''}
+                                </div>
+                            </td>
                             <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
                             <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
@@ -839,9 +1014,12 @@ const EditPage = () => {
                     ${projects.length === 0 ? `
                         <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">${canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.'}</td></tr>
                     ` : projects.map(p => `
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 ${p.isLinked ? 'border-l-2 border-l-purple-400' : ''}">
                             <td class="px-4 py-3">
-                                <div class="font-medium text-gray-900">${p.name}</div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-medium text-gray-900">${p.name}</span>
+                                    ${p.isLinked ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded" title="From ${p.sourceWorkspaceName}">Synced</span>` : ''}
+                                </div>
                                 <div class="text-sm text-gray-500">${p.tasks?.length || 0} tasks</div>
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${p.owner}</td>
@@ -854,6 +1032,11 @@ const EditPage = () => {
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${formatDate(p.startDate)} - ${formatDate(p.endDate)}</td>
                             <td class="px-4 py-3 text-right">
+                                ${!p.isLinked && canEdit ? `
+                                    <button onclick="showLinkModal('${p.odid}')" class="text-purple-400 hover:text-purple-600 text-sm font-medium mr-2" title="Sync to Other Workspaces">
+                                        <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                    </button>
+                                ` : ''}
                                 <button onclick="showAuditModal('${p.odid}')" class="text-gray-400 hover:text-gray-600 text-sm font-medium mr-2" title="View History">
                                     <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 </button>
@@ -1633,6 +1816,16 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.10.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Project Sync - link projects across workspaces</li>
+                                    <li>Sync button on project cards and edit table</li>
+                                    <li>Synced projects show purple "Synced" badge</li>
+                                    <li>Manage links from sync modal</li>
+                                    <li>Enables cross-workspace collaboration</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.9.2 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">

@@ -124,6 +124,26 @@ try {
   // Column already exists, ignore
 }
 
+// Create project_links table for syncing projects across workspaces
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      projectOdid TEXT NOT NULL,
+      workspaceId INTEGER NOT NULL,
+      linkedBy INTEGER NOT NULL,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (workspaceId) REFERENCES workspaces(id),
+      FOREIGN KEY (linkedBy) REFERENCES users(id),
+      UNIQUE(projectOdid, workspaceId)
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_links_odid ON project_links(projectOdid);
+    CREATE INDEX IF NOT EXISTS idx_project_links_workspace ON project_links(workspaceId);
+  `);
+} catch (e) {
+  // Table/indexes might already exist
+}
+
 // Create default admin user if not exists
 const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
 if (!adminExists) {
@@ -493,14 +513,37 @@ app.get('/api/projects', authenticate, (req, res) => {
     const workspace = db.prepare('SELECT userId FROM workspaces WHERE id = ?').get(workspaceId);
     if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
 
-    projects = db.prepare('SELECT * FROM projects WHERE workspaceId = ? ORDER BY createdAt DESC').all(workspaceId);
-    // Add workspace permission to response
-    projects = projects.map(p => ({
-      ...p,
-      tasks: JSON.parse(p.tasks || '[]'),
-      notes: JSON.parse(p.notes || '[]'),
-      workspacePermission: permission
-    }));
+    // Get native projects (projects that belong to this workspace)
+    const nativeProjects = db.prepare('SELECT * FROM projects WHERE workspaceId = ? ORDER BY createdAt DESC').all(workspaceId);
+
+    // Get linked projects (projects linked to this workspace from other workspaces)
+    const linkedProjects = db.prepare(`
+      SELECT p.*, pl.id as linkId, w.name as sourceWorkspaceName
+      FROM project_links pl
+      JOIN projects p ON pl.projectOdid = p.odid
+      JOIN workspaces w ON p.workspaceId = w.id
+      WHERE pl.workspaceId = ?
+      ORDER BY p.createdAt DESC
+    `).all(workspaceId);
+
+    // Combine and format projects
+    projects = [
+      ...nativeProjects.map(p => ({
+        ...p,
+        tasks: JSON.parse(p.tasks || '[]'),
+        notes: JSON.parse(p.notes || '[]'),
+        workspacePermission: permission,
+        isLinked: false
+      })),
+      ...linkedProjects.map(p => ({
+        ...p,
+        tasks: JSON.parse(p.tasks || '[]'),
+        notes: JSON.parse(p.notes || '[]'),
+        workspacePermission: permission,
+        isLinked: true,
+        sourceWorkspaceName: p.sourceWorkspaceName
+      }))
+    ];
   } else {
     // Get all projects from owned workspaces only
     projects = db.prepare('SELECT * FROM projects WHERE userId = ? ORDER BY createdAt DESC').all(req.user.id);
@@ -508,7 +551,8 @@ app.get('/api/projects', authenticate, (req, res) => {
       ...p,
       tasks: JSON.parse(p.tasks || '[]'),
       notes: JSON.parse(p.notes || '[]'),
-      workspacePermission: 'owner'
+      workspacePermission: 'owner',
+      isLinked: false
     }));
   }
 
@@ -612,6 +656,115 @@ app.get('/api/projects/:id/audit', authenticate, (req, res) => {
   }));
 
   res.json(entries);
+});
+
+// Get workspaces a project is linked to
+app.get('/api/projects/:id/links', authenticate, (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE odid = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  // Check permission on source workspace
+  const permission = getWorkspacePermission(project.workspaceId, req.user.id);
+  if (!permission) return res.status(403).json({ error: 'Access denied' });
+
+  const links = db.prepare(`
+    SELECT pl.id, pl.workspaceId, w.name as workspaceName, u.username as linkedByUsername, pl.createdAt
+    FROM project_links pl
+    JOIN workspaces w ON pl.workspaceId = w.id
+    JOIN users u ON pl.linkedBy = u.id
+    WHERE pl.projectOdid = ?
+    ORDER BY pl.createdAt DESC
+  `).all(req.params.id);
+
+  res.json(links);
+});
+
+// Link a project to another workspace
+app.post('/api/projects/:id/link', authenticate, (req, res) => {
+  const { workspaceId } = req.body;
+  if (!workspaceId) return res.status(400).json({ error: 'Target workspaceId required' });
+
+  const project = db.prepare('SELECT * FROM projects WHERE odid = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  // Check permission on source workspace (need at least viewer to see project)
+  const sourcePermission = getWorkspacePermission(project.workspaceId, req.user.id);
+  if (!sourcePermission) return res.status(403).json({ error: 'Access denied to source project' });
+
+  // Check permission on target workspace (need editor or owner to link)
+  const targetPermission = getWorkspacePermission(workspaceId, req.user.id);
+  if (!targetPermission) return res.status(403).json({ error: 'Access denied to target workspace' });
+  if (targetPermission === 'viewer') return res.status(403).json({ error: 'Viewers cannot link projects to workspace' });
+
+  // Cannot link to the same workspace
+  if (project.workspaceId === parseInt(workspaceId)) {
+    return res.status(400).json({ error: 'Project already belongs to this workspace' });
+  }
+
+  try {
+    const result = db.prepare('INSERT INTO project_links (projectOdid, workspaceId, linkedBy) VALUES (?, ?, ?)')
+      .run(req.params.id, workspaceId, req.user.id);
+
+    // Log audit
+    const targetWorkspace = db.prepare('SELECT name FROM workspaces WHERE id = ?').get(workspaceId);
+    logAudit(req.params.id, req.user.id, req.user.username, 'LINK', { targetWorkspace: targetWorkspace?.name, targetWorkspaceId: workspaceId });
+
+    res.json({ id: result.lastInsertRowid, success: true });
+  } catch (err) {
+    if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'Project already linked to this workspace' });
+    res.status(500).json({ error: 'Failed to link project' });
+  }
+});
+
+// Unlink a project from a workspace
+app.delete('/api/projects/:id/link/:workspaceId', authenticate, (req, res) => {
+  const project = db.prepare('SELECT * FROM projects WHERE odid = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  // Check permission on the workspace being unlinked from (need editor or owner)
+  const permission = getWorkspacePermission(req.params.workspaceId, req.user.id);
+  if (!permission) return res.status(403).json({ error: 'Access denied' });
+  if (permission === 'viewer') return res.status(403).json({ error: 'Viewers cannot unlink projects' });
+
+  const result = db.prepare('DELETE FROM project_links WHERE projectOdid = ? AND workspaceId = ?')
+    .run(req.params.id, req.params.workspaceId);
+
+  if (result.changes === 0) return res.status(404).json({ error: 'Link not found' });
+
+  // Log audit
+  const targetWorkspace = db.prepare('SELECT name FROM workspaces WHERE id = ?').get(req.params.workspaceId);
+  logAudit(req.params.id, req.user.id, req.user.username, 'UNLINK', { targetWorkspace: targetWorkspace?.name, targetWorkspaceId: parseInt(req.params.workspaceId) });
+
+  res.json({ success: true });
+});
+
+// Get workspaces available for linking (workspaces user has edit access to)
+app.get('/api/workspaces/linkable', authenticate, (req, res) => {
+  const excludeWorkspaceId = req.query.exclude;
+
+  // Get owned workspaces
+  let ownedWorkspaces = db.prepare('SELECT id, name FROM workspaces WHERE userId = ?').all(req.user.id);
+
+  // Get shared workspaces with editor permission
+  const sharedWorkspaces = db.prepare(`
+    SELECT w.id, w.name, u.username as ownerUsername
+    FROM workspace_shares ws
+    JOIN workspaces w ON ws.workspaceId = w.id
+    JOIN users u ON w.userId = u.id
+    WHERE ws.userId = ? AND ws.permission = 'editor'
+  `).all(req.user.id);
+
+  // Combine and filter out the excluded workspace
+  let linkable = [
+    ...ownedWorkspaces.map(w => ({ ...w, isOwner: true })),
+    ...sharedWorkspaces.map(w => ({ ...w, isOwner: false }))
+  ];
+
+  if (excludeWorkspaceId) {
+    linkable = linkable.filter(w => w.id !== parseInt(excludeWorkspaceId));
+  }
+
+  res.json(linkable);
 });
 
 // Change own password
