@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.5.1';
 
 // State Management
 let projects = [];
@@ -229,9 +229,19 @@ const Header = () => `
                     <button onclick="toggleSettings()" class="px-3 py-2 rounded-lg font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                     </button>
-                    <div id="settingsMenu" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                    <div id="settingsMenu" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                        <div class="p-3 bg-gray-50 border-b">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
+                                    ${currentUser?.username?.charAt(0).toUpperCase() || '?'}
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-gray-900">${currentUser?.username}</div>
+                                    <div class="text-xs ${currentUser?.isAdmin ? 'text-purple-600' : 'text-gray-500'}">${currentUser?.isAdmin ? 'Administrator' : 'User'}</div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="p-2">
-                            <div class="px-3 py-2 text-xs text-gray-500 border-b mb-1">Signed in as <strong>${currentUser?.username}</strong></div>
                             <button onclick="toggleDarkMode()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
                                 <span>${darkMode ? '☀️' : '🌙'}</span>
                                 <span>${darkMode ? 'Light Mode' : 'Dark Mode'}</span>
@@ -1101,6 +1111,13 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.5.1 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Enhanced user profile section in settings</li>
+                                    <li>Shows avatar, username, and role badge</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.5.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
