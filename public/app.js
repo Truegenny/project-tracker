@@ -373,6 +373,7 @@ const FinishedPage = () => {
                             <td class="px-4 py-3 text-sm text-gray-600">${formatDate(p.completedDate)}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">${daysBetween(p.startDate, p.endDate)} days</td>
                             <td class="px-4 py-3 text-right">
+                                <button onclick="reactivateProject('${p.odid}')" class="text-emerald-600 hover:text-emerald-800 text-sm font-medium mr-2">Reactivate</button>
                                 <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
                             </td>
                         </tr>
@@ -657,6 +658,29 @@ async function deleteProject(id) {
             render();
         } catch (err) {
             alert('Error deleting project: ' + err.message);
+        }
+    }
+}
+
+async function reactivateProject(id) {
+    const project = projects.find(p => p.odid === id);
+    if (!project) return;
+
+    if (confirm(`Reactivate "${project.name}" and move it back to Overview?`)) {
+        try {
+            await api(`/projects/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    ...project,
+                    status: 'active',
+                    completedDate: null,
+                    progress: project.progress >= 100 ? 90 : project.progress
+                })
+            });
+            await loadProjects();
+            render();
+        } catch (err) {
+            alert('Error reactivating project: ' + err.message);
         }
     }
 }
