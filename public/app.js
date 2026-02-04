@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.11.3';
+const APP_VERSION = '2.11.4';
 
 // State Management
 let projects = [];
@@ -1473,7 +1473,7 @@ const ProjectModal = (project = null) => {
     const hasTasks = project?.tasks?.length > 0;
 
     return `
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" ${isNewProject ? '' : 'onclick="if(event.target.id===\'modal\')closeModal()"'}>
         <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div class="p-6 border-b border-gray-200">
                 <div class="flex items-center justify-between">
@@ -2210,6 +2210,12 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.11.4 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Prevent accidental close when clicking outside new project modal</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.11.3 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
