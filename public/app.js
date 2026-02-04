@@ -1492,9 +1492,9 @@ const ProjectModal = (project = null) => {
             <form onsubmit="${isViewOnly ? 'event.preventDefault(); closeModal();' : 'saveProject(event)'}" class="p-6 space-y-4">
                 <input type="hidden" id="projectId" value="${project?.odid || ''}">
                 ${isNewProject && templates.length > 0 ? `
-                    <div class="bg-blue-50 rounded-lg p-4">
-                        <label class="block text-sm font-medium text-blue-800 mb-2">Start from Template (Optional)</label>
-                        <select id="templateSelect" onchange="applyTemplate(this.value)" class="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500">
+                    <div class="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                        <label class="block text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">Start from Template (Optional)</label>
+                        <select id="templateSelect" onchange="applyTemplate(this.value)" class="w-full px-3 py-2 border border-blue-200 dark:border-blue-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500">
                             <option value="">Select a template...</option>
                             ${templates.filter(t => !t.isGlobal).length > 0 ? `
                                 <optgroup label="My Templates">
@@ -1507,7 +1507,7 @@ const ProjectModal = (project = null) => {
                                 </optgroup>
                             ` : ''}
                         </select>
-                        <p class="text-xs text-blue-600 mt-1">Selecting a template will populate the tasks below</p>
+                        <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">Selecting a template will populate the tasks below</p>
                     </div>
                 ` : ''}
                 <div class="grid grid-cols-2 gap-4">
