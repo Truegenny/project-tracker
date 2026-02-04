@@ -1,3 +1,6 @@
+// Version
+const APP_VERSION = '2.1.0';
+
 // State Management
 let projects = [];
 let currentView = 'overview';
@@ -160,7 +163,7 @@ const LoginPage = () => `
 const Header = () => `
     <header class="bg-white shadow-sm border-b border-gray-200 no-print">
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-gray-900">Ntiva Integration Project Tracker <span class="text-sm font-normal text-blue-600">Beta</span></h1>
+            <h1 class="text-2xl font-bold text-gray-900">Ntiva Integration Project Tracker <span class="text-sm font-normal text-blue-600">v${APP_VERSION}</span></h1>
             <nav class="flex gap-2 items-center">
                 <button onclick="switchView('simple')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Simple</button>
                 <button onclick="switchView('overview')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'overview' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Overview</button>
@@ -800,7 +803,7 @@ function showInfo() {
     closeSettings();
     document.body.insertAdjacentHTML('beforeend', `
         <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
-            <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4">
+            <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <div class="p-6 border-b border-gray-200"><h3 class="text-lg font-semibold">About Ntiva Integration Project Tracker</h3></div>
                 <div class="p-6 space-y-4 text-sm text-gray-600">
                     <p><strong>Purpose:</strong> Track and manage integration projects with clear timelines, progress tracking, and status visibility for executive reporting.</p>
@@ -812,9 +815,41 @@ function showInfo() {
                         <li><strong>Edit Projects:</strong> Add, modify, or remove projects</li>
                         <li><strong>Export PDF:</strong> Generate reports for executive review</li>
                     </ul>
+                    <div class="pt-4 border-t">
+                        <p class="font-semibold text-gray-700 mb-2">Changelog</p>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.1.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Added version number display in header</li>
+                                    <li>Added changelog to About modal</li>
+                                    <li>Added Reactivate button for finished projects</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-800">v2.0.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Complete backend rewrite with authentication</li>
+                                    <li>SQLite database for persistent storage</li>
+                                    <li>User management admin panel</li>
+                                    <li>JWT-based secure login</li>
+                                    <li>Per-user project isolation</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-800">v1.0.0 <span class="text-gray-400">- Initial Release</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Project tracking with timelines</li>
+                                    <li>Status auto-updates</li>
+                                    <li>Dark mode support</li>
+                                    <li>PDF export</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                     <div class="pt-4 border-t text-xs text-gray-400">
                         <p>Designed by Justin Cronin | Built with Claude AI</p>
-                        <p>Version 2.0 | Data stored securely on server</p>
+                        <p>Version ${APP_VERSION} | Data stored securely on server</p>
                     </div>
                 </div>
                 <div class="p-4 border-t flex justify-end">
