@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.11.4';
+const APP_VERSION = '2.12.0';
 
 // State Management
 let projects = [];
@@ -1066,6 +1066,10 @@ const Header = () => {
                             <button onclick="showInfo()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
                                 <span>ℹ️</span>
                                 <span>About</span>
+                            </button>
+                            <button onclick="showDocumentation()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
+                                <span>📖</span>
+                                <span>Documentation</span>
                             </button>
                             <button onclick="showManageTemplatesModal()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
                                 <span>📋</span>
@@ -2211,6 +2215,14 @@ function showInfo() {
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
                             <div>
+                                <p class="font-medium text-gray-800">v2.12.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Documentation page - comprehensive user guide</li>
+                                    <li>Accessible from Settings menu</li>
+                                    <li>Covers all features: views, projects, workspaces, sharing, templates, exports</li>
+                                </ul>
+                            </div>
+                            <div>
                                 <p class="font-medium text-gray-800">v2.11.4 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
                                     <li>Prevent accidental close when clicking outside new project modal</li>
@@ -2390,6 +2402,183 @@ function showInfo() {
                 </div>
                 <div class="p-4 border-t flex justify-end">
                     <button onclick="closeModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Close</button>
+                </div>
+            </div>
+        </div>
+    `);
+}
+
+function showDocumentation() {
+    closeSettings();
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">Documentation</h3>
+                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                    </div>
+                </div>
+                <div class="p-6 space-y-6 text-sm text-gray-600">
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">1.</span> Getting Started
+                        </h4>
+                        <p class="mb-2">Welcome to the Project Tracker! This application helps you manage integration projects with visual timelines, progress tracking, and team collaboration.</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li><strong>Login:</strong> Use your credentials to access the system</li>
+                            <li><strong>Default Workspace:</strong> A workspace is automatically created for you on first login</li>
+                            <li><strong>Navigation:</strong> Use the tabs at the top to switch between views</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">2.</span> Views Explained
+                        </h4>
+                        <div class="space-y-3">
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <p class="font-medium text-gray-800">Overview (Simple/Detailed Toggle)</p>
+                                <p class="text-gray-600 mt-1">Your main dashboard. Use the toggle in the top-right to switch between:</p>
+                                <ul class="list-disc pl-5 mt-1">
+                                    <li><strong>Simple View:</strong> Compact table with key metrics - great for executive summaries</li>
+                                    <li><strong>Detailed View:</strong> Full project cards with timelines, descriptions, and expandable sections</li>
+                                </ul>
+                            </div>
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <p class="font-medium text-gray-800">Edit Projects</p>
+                                <p class="text-gray-600 mt-1">Manage your projects - add new ones, edit existing, or delete. Click any project row to open the edit modal.</p>
+                            </div>
+                            <div class="bg-gray-50 p-3 rounded-lg">
+                                <p class="font-medium text-gray-800">Finished</p>
+                                <p class="text-gray-600 mt-1">Archive of completed projects. Projects automatically move here 7 days after reaching 100%. Use "Reactivate" to bring them back.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">3.</span> Creating & Managing Projects
+                        </h4>
+                        <ul class="list-disc pl-5 space-y-2">
+                            <li><strong>New Project:</strong> Click "+ New Project" on the Edit Projects tab</li>
+                            <li><strong>Required Fields:</strong> Project Name, Owner, Start Date, End Date</li>
+                            <li><strong>Templates:</strong> Use templates to pre-populate tasks for common project types</li>
+                            <li><strong>Sub-tasks:</strong> Break projects into manageable tasks with checkboxes</li>
+                            <li><strong>Notes:</strong> Add timestamped notes for progress updates and communication</li>
+                            <li><strong>Progress:</strong> Update the percentage manually or let tasks influence it</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">4.</span> Status Colors & Auto-Updates
+                        </h4>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-purple-500"></span> <strong>Discovery</strong> - Initial planning phase</div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500"></span> <strong>Active</strong> - Work in progress</div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> <strong>On Track</strong> - Progressing as expected</div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500"></span> <strong>Behind</strong> - Past due date (auto-set)</div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500"></span> <strong>On Pause</strong> - Temporarily halted</div>
+                            <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-green-600"></span> <strong>Complete</strong> - 100% done (auto-set)</div>
+                        </div>
+                        <p class="mt-3 text-xs text-gray-500">Note: Status automatically changes to "Behind" if past end date, and "Complete" when progress reaches 100%.</p>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">5.</span> Workspaces
+                        </h4>
+                        <ul class="list-disc pl-5 space-y-2">
+                            <li><strong>Purpose:</strong> Organize projects into separate collections (e.g., by client, department, or project type)</li>
+                            <li><strong>Create:</strong> Click the "+" button next to the workspace dropdown</li>
+                            <li><strong>Switch:</strong> Use the dropdown in the header to change workspaces</li>
+                            <li><strong>Manage:</strong> Click workspace name > "Manage Workspaces" to rename or delete</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">6.</span> Sharing & Collaboration
+                        </h4>
+                        <ul class="list-disc pl-5 space-y-2">
+                            <li><strong>Share Workspace:</strong> Click workspace name > "Manage Shares" to invite others</li>
+                            <li><strong>Permission Levels:</strong>
+                                <ul class="list-disc pl-5 mt-1">
+                                    <li><strong>Viewer:</strong> Can view projects but cannot edit</li>
+                                    <li><strong>Editor:</strong> Can create, edit, and delete projects</li>
+                                </ul>
+                            </li>
+                            <li><strong>Project Sync:</strong> Link a project to appear in multiple workspaces using the sync button</li>
+                            <li><strong>Leave Workspace:</strong> Remove yourself from a shared workspace via the workspace menu</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">7.</span> Templates
+                        </h4>
+                        <ul class="list-disc pl-5 space-y-2">
+                            <li><strong>Use Template:</strong> When creating a new project, select a template to auto-fill tasks</li>
+                            <li><strong>Create Template:</strong> Open an existing project with tasks > click "Save as Template"</li>
+                            <li><strong>Manage:</strong> Settings > "Manage Templates" to edit or delete templates</li>
+                            <li><strong>Global Templates:</strong> Admins can create templates available to all users</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">8.</span> Exporting Data
+                        </h4>
+                        <ul class="list-disc pl-5 space-y-2">
+                            <li><strong>PDF Export:</strong> Click "Export" > "PDF" to generate a printable report of current view</li>
+                            <li><strong>CSV Export:</strong> Click "Export" > "CSV" to download project data as a spreadsheet</li>
+                            <li><strong>Tip:</strong> Use Simple View for cleaner PDF reports</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">9.</span> Activity History (Audit Trail)
+                        </h4>
+                        <p class="mb-2">Track all changes made to a project:</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li>Click the clock icon on any project card or in the edit list</li>
+                            <li>View who made changes, what changed, and when</li>
+                            <li>Tracks: creation, updates, status changes, progress, timeline, notes, and deletions</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-blue-600">10.</span> Tips & Shortcuts
+                        </h4>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li><strong>Dark Mode:</strong> Toggle in Settings for eye-friendly viewing</li>
+                            <li><strong>Demo Mode:</strong> Load sample data to explore features without affecting real projects</li>
+                            <li><strong>Timeline Bar:</strong> The red line shows TODAY's position in the project timeline</li>
+                            <li><strong>Last Updated:</strong> Check who last modified a project and when in the project info</li>
+                        </ul>
+                    </section>
+
+                    ${currentUser?.isAdmin ? `
+                    <section class="border-t pt-4">
+                        <h4 class="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                            <span class="text-purple-600">Admin</span> Features
+                        </h4>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li><strong>Admin Panel:</strong> Accessible from navigation - manage all users</li>
+                            <li><strong>Create Users:</strong> Add new users with username and password</li>
+                            <li><strong>Reset Passwords:</strong> Reset any user's password if they're locked out</li>
+                            <li><strong>Global Templates:</strong> Create templates available to all users</li>
+                        </ul>
+                    </section>
+                    ` : ''}
+
+                </div>
+                <div class="p-4 border-t flex justify-end sticky bottom-0 bg-white">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Close</button>
                 </div>
             </div>
         </div>
