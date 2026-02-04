@@ -58,7 +58,10 @@ function logout() {
     token = null;
     currentUser = null;
     projects = [];
+    workspaces = [];
+    currentWorkspace = null;
     localStorage.removeItem('token');
+    localStorage.removeItem('currentWorkspaceId');
     render();
 }
 
@@ -77,9 +80,11 @@ async function checkAuth() {
 async function loadWorkspaces() {
     try {
         workspaces = await api('/workspaces');
-        if (!currentWorkspace && workspaces.length > 0) {
-            const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
-            currentWorkspace = workspaces.find(w => w.id == savedWorkspaceId) || workspaces[0];
+        // Always reset currentWorkspace to ensure it belongs to current user
+        const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
+        currentWorkspace = workspaces.find(w => w.id == savedWorkspaceId) || workspaces[0] || null;
+        if (currentWorkspace) {
+            localStorage.setItem('currentWorkspaceId', currentWorkspace.id);
         }
     } catch (err) {
         console.error('Failed to load workspaces:', err);
