@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.12.0';
+const APP_VERSION = '2.12.1';
 
 // State Management
 let projects = [];
@@ -2214,6 +2214,12 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.12.1 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Fixed documentation text colors in dark mode</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.12.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
