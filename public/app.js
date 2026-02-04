@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.12.1';
+const APP_VERSION = '2.13.0';
 
 // State Management
 let projects = [];
@@ -10,6 +10,7 @@ let currentUser = null;
 let token = localStorage.getItem('token');
 let darkMode = localStorage.getItem('darkMode') === 'true';
 let simpleView = localStorage.getItem('simpleView') === 'true';
+let sortBy = localStorage.getItem('sortBy') || 'status';
 let demoMode = false;
 let allUsers = [];  // For share dropdown
 let templates = []; // For project templates
@@ -902,6 +903,29 @@ const activeProjects = () => projects.filter(p => !isFinished(p));
 const finishedProjects = () => projects.filter(p => isFinished(p));
 const sortByBehindFirst = (arr) => [...arr].sort((a, b) => (a.status === 'behind' ? -1 : b.status === 'behind' ? 1 : 0));
 
+const sortProjects = (arr) => {
+    const statusOrder = ['behind', 'on-pause', 'active', 'discovery', 'on-track', 'complete'];
+    return [...arr].sort((a, b) => {
+        switch(sortBy) {
+            case 'name': return a.name.localeCompare(b.name);
+            case 'name-desc': return b.name.localeCompare(a.name);
+            case 'progress': return b.progress - a.progress;
+            case 'progress-asc': return a.progress - b.progress;
+            case 'end-date': return new Date(a.endDate) - new Date(b.endDate);
+            case 'end-date-desc': return new Date(b.endDate) - new Date(a.endDate);
+            case 'updated': return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+            case 'status':
+            default: return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+        }
+    });
+};
+
+function changeSort(value) {
+    sortBy = value;
+    localStorage.setItem('sortBy', sortBy);
+    render();
+}
+
 // Login Page
 const LoginPage = () => `
     <div class="min-h-screen flex items-center justify-center bg-gray-50">
@@ -1208,23 +1232,39 @@ const ProjectCard = (project) => {
 
 const OverviewPage = () => {
     const active = activeProjects();
-    const sorted = sortByBehindFirst(active);
+    const sorted = sortProjects(active);
+
+    const sortDropdown = `
+        <select onchange="changeSort(this.value)" class="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white text-gray-700">
+            <option value="status" ${sortBy === 'status' ? 'selected' : ''}>Sort: Status</option>
+            <option value="name" ${sortBy === 'name' ? 'selected' : ''}>Sort: Name (A-Z)</option>
+            <option value="name-desc" ${sortBy === 'name-desc' ? 'selected' : ''}>Sort: Name (Z-A)</option>
+            <option value="progress" ${sortBy === 'progress' ? 'selected' : ''}>Sort: Progress (High)</option>
+            <option value="progress-asc" ${sortBy === 'progress-asc' ? 'selected' : ''}>Sort: Progress (Low)</option>
+            <option value="end-date" ${sortBy === 'end-date' ? 'selected' : ''}>Sort: Due Date (Soon)</option>
+            <option value="end-date-desc" ${sortBy === 'end-date-desc' ? 'selected' : ''}>Sort: Due Date (Later)</option>
+            <option value="updated" ${sortBy === 'updated' ? 'selected' : ''}>Sort: Recently Updated</option>
+        </select>
+    `;
 
     const toggleHtml = `
-        <div class="flex items-center gap-3">
-            <span class="text-sm text-gray-500">Detailed</span>
-            <button onclick="toggleSimpleView()" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${simpleView ? 'bg-blue-600' : 'bg-gray-300'}">
-                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${simpleView ? 'translate-x-6' : 'translate-x-1'}"></span>
-            </button>
-            <span class="text-sm text-gray-500">Simple</span>
+        <div class="flex items-center gap-4">
+            ${sortDropdown}
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-gray-500">Detailed</span>
+                <button onclick="toggleSimpleView()" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${simpleView ? 'bg-blue-600' : 'bg-gray-300'}">
+                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${simpleView ? 'translate-x-6' : 'translate-x-1'}"></span>
+                </button>
+                <span class="text-sm text-gray-500">Simple</span>
+            </div>
         </div>
     `;
 
-    const detailedView = active.length === 0 ? `
+    const detailedView = sorted.length === 0 ? `
         <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
             <p class="text-gray-500">No active projects.</p>
         </div>
-    ` : active.map(ProjectCard).join('');
+    ` : sorted.map(ProjectCard).join('');
 
     const simpleTableView = sorted.length === 0 ? `
         <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
@@ -1357,6 +1397,20 @@ const FinishedPage = () => {
 const EditPage = () => {
     const canEdit = canEditWorkspace();
     const isViewer = currentWorkspace && !currentWorkspace.isOwner && currentWorkspace.permission === 'viewer';
+    const sorted = sortProjects(projects);
+
+    const sortDropdown = `
+        <select onchange="changeSort(this.value)" class="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white text-gray-700">
+            <option value="status" ${sortBy === 'status' ? 'selected' : ''}>Sort: Status</option>
+            <option value="name" ${sortBy === 'name' ? 'selected' : ''}>Sort: Name (A-Z)</option>
+            <option value="name-desc" ${sortBy === 'name-desc' ? 'selected' : ''}>Sort: Name (Z-A)</option>
+            <option value="progress" ${sortBy === 'progress' ? 'selected' : ''}>Sort: Progress (High)</option>
+            <option value="progress-asc" ${sortBy === 'progress-asc' ? 'selected' : ''}>Sort: Progress (Low)</option>
+            <option value="end-date" ${sortBy === 'end-date' ? 'selected' : ''}>Sort: Due Date (Soon)</option>
+            <option value="end-date-desc" ${sortBy === 'end-date-desc' ? 'selected' : ''}>Sort: Due Date (Later)</option>
+            <option value="updated" ${sortBy === 'updated' ? 'selected' : ''}>Sort: Recently Updated</option>
+        </select>
+    `;
 
     return `
     <div class="max-w-7xl mx-auto px-4 py-8">
@@ -1364,6 +1418,7 @@ const EditPage = () => {
             <div class="flex items-center gap-3">
                 <h2 class="text-xl font-semibold text-gray-900">Manage Projects</h2>
                 ${isViewer ? '<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">View Only</span>' : ''}
+                ${sortDropdown}
             </div>
             ${canEdit ? `<button onclick="openProjectModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">+ Add Project</button>` : ''}
         </div>
@@ -1380,9 +1435,9 @@ const EditPage = () => {
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
-                    ${projects.length === 0 ? `
+                    ${sorted.length === 0 ? `
                         <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">${canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.'}</td></tr>
-                    ` : projects.map(p => `
+                    ` : sorted.map(p => `
                         <tr class="hover:bg-gray-50 ${p.isLinked ? 'border-l-2 border-l-purple-400' : ''}">
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
@@ -2214,6 +2269,14 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.13.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Sort feature for projects in Overview and Edit tabs</li>
+                                    <li>Sort by: Status, Name, Progress, Due Date, Recently Updated</li>
+                                    <li>Sort preference saved to browser</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.12.1 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
