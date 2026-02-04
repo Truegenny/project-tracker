@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.8.0';
 
 // State Management
 let projects = [];
@@ -11,6 +11,7 @@ let token = localStorage.getItem('token');
 let darkMode = localStorage.getItem('darkMode') === 'true';
 let simpleView = localStorage.getItem('simpleView') === 'true';
 let demoMode = false;
+let allUsers = [];  // For share dropdown
 
 // Apply dark mode on load
 if (darkMode) document.body.classList.add('dark');
@@ -103,6 +104,72 @@ async function loadProjects() {
     }
 }
 
+// Permission helpers
+function canEditWorkspace() {
+    if (!currentWorkspace) return false;
+    return currentWorkspace.permission === 'owner' || currentWorkspace.permission === 'editor';
+}
+
+function isWorkspaceOwner() {
+    if (!currentWorkspace) return false;
+    return currentWorkspace.isOwner === true || currentWorkspace.permission === 'owner';
+}
+
+// Share management functions
+async function loadShareableUsers() {
+    try {
+        allUsers = await api('/users');
+    } catch (err) {
+        console.error('Failed to load users:', err);
+        allUsers = [];
+    }
+}
+
+async function loadWorkspaceShares(workspaceId) {
+    try {
+        return await api(`/workspaces/${workspaceId}/shares`);
+    } catch (err) {
+        console.error('Failed to load shares:', err);
+        return [];
+    }
+}
+
+async function addWorkspaceShare(workspaceId, userId, permission) {
+    try {
+        await api(`/workspaces/${workspaceId}/shares`, {
+            method: 'POST',
+            body: JSON.stringify({ userId, permission })
+        });
+        return true;
+    } catch (err) {
+        alert('Error: ' + err.message);
+        return false;
+    }
+}
+
+async function updateWorkspaceShare(workspaceId, shareId, permission) {
+    try {
+        await api(`/workspaces/${workspaceId}/shares/${shareId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ permission })
+        });
+        return true;
+    } catch (err) {
+        alert('Error: ' + err.message);
+        return false;
+    }
+}
+
+async function removeWorkspaceShare(workspaceId, shareId) {
+    try {
+        await api(`/workspaces/${workspaceId}/shares/${shareId}`, { method: 'DELETE' });
+        return true;
+    } catch (err) {
+        alert('Error: ' + err.message);
+        return false;
+    }
+}
+
 // Utility Functions
 const formatDate = (date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const daysBetween = (d1, d2) => Math.ceil((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24));
@@ -184,32 +251,81 @@ const LoginPage = () => `
 `;
 
 // Header Component
-const Header = () => `
+const Header = () => {
+    const getPermissionBadge = (w) => {
+        if (w.isOwner) return '';
+        if (w.permission === 'editor') return '<span class="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">Editor</span>';
+        return '<span class="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">Viewer</span>';
+    };
+
+    const getWorkspaceIcon = (w) => {
+        if (!w.isOwner) {
+            // Shared workspace icon
+            return '<svg class="w-4 h-4 flex-shrink-0 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>';
+        }
+        return '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>';
+    };
+
+    const currentPermBadge = currentWorkspace && !currentWorkspace.isOwner
+        ? `<span class="ml-1 px-1.5 py-0.5 text-xs ${currentWorkspace.permission === 'editor' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'} rounded">${currentWorkspace.permission === 'editor' ? 'Editor' : 'Viewer'}</span>`
+        : '';
+
+    // Separate owned and shared workspaces
+    const ownedWorkspaces = workspaces.filter(w => w.isOwner);
+    const sharedWorkspaces = workspaces.filter(w => !w.isOwner);
+
+    return `
     <header class="bg-white shadow-sm border-b border-gray-200 no-print">
         <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
             <div class="flex items-center gap-3">
                 <h1 class="text-lg font-semibold text-gray-900 whitespace-nowrap">Project Tracker <span class="text-xs font-normal text-blue-600">v${APP_VERSION}</span></h1>
                 <div class="relative">
-                    <button onclick="toggleWorkspaceMenu()" class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition max-w-[280px]">
-                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                        <span class="truncate">${currentWorkspace?.name || 'Select Workspace'}</span>
+                    <button onclick="toggleWorkspaceMenu()" class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition max-w-[320px]">
+                        ${currentWorkspace && !currentWorkspace.isOwner
+                            ? '<svg class="w-4 h-4 flex-shrink-0 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>'
+                            : '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>'
+                        }
+                        <span class="truncate">${currentWorkspace?.name || 'Select Workspace'}${currentWorkspace && !currentWorkspace.isOwner ? ` (${currentWorkspace.ownerUsername})` : ''}</span>
+                        ${currentPermBadge}
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    <div id="workspaceMenu" class="hidden absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                    <div id="workspaceMenu" class="hidden absolute left-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                         <div class="p-2">
-                            <div class="px-3 py-2 text-xs text-gray-500 border-b mb-1 font-medium">WORKSPACES</div>
-                            ${workspaces.map(w => `
+                            <div class="px-3 py-2 text-xs text-gray-500 border-b mb-1 font-medium">MY WORKSPACES</div>
+                            ${ownedWorkspaces.map(w => `
                                 <button onclick="switchWorkspace(${w.id})" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg ${currentWorkspace?.id === w.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}">
                                     <span class="truncate">${w.name}</span>
                                     ${currentWorkspace?.id === w.id ? '<svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' : ''}
                                 </button>
                             `).join('')}
+                            ${sharedWorkspaces.length > 0 ? `
+                                <div class="px-3 py-2 text-xs text-gray-500 border-b border-t mt-2 mb-1 font-medium">SHARED WITH ME</div>
+                                ${sharedWorkspaces.map(w => `
+                                    <button onclick="switchWorkspace(${w.id})" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg ${currentWorkspace?.id === w.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <svg class="w-4 h-4 flex-shrink-0 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                            <span class="truncate">${w.name}</span>
+                                            <span class="text-xs text-gray-400">(${w.ownerUsername})</span>
+                                        </div>
+                                        <div class="flex items-center gap-1 flex-shrink-0">
+                                            ${getPermissionBadge(w)}
+                                            ${currentWorkspace?.id === w.id ? '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' : ''}
+                                        </div>
+                                    </button>
+                                `).join('')}
+                            ` : ''}
                             <div class="border-t my-1"></div>
                             <button onclick="showCreateWorkspace()" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                                 New Workspace
                             </button>
-                            ${workspaces.length > 1 ? `
+                            ${ownedWorkspaces.length > 0 && isWorkspaceOwner() ? `
+                            <button onclick="showShareWorkspace(${currentWorkspace?.id})" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-purple-600 hover:bg-purple-50 rounded-lg">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                                Share Workspace
+                            </button>
+                            ` : ''}
+                            ${ownedWorkspaces.length > 1 ? `
                             <button onclick="showManageWorkspaces()" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                 Manage Workspaces
@@ -287,6 +403,7 @@ const Header = () => `
         </div>
     </header>
 `;
+};
 
 const ProjectCard = (project) => {
     const timelineProgress = getTimelineProgress(project.startDate, project.endDate);
@@ -459,10 +576,16 @@ const OverviewPage = () => {
 
 const FinishedPage = () => {
     const finished = finishedProjects();
+    const canEdit = canEditWorkspace();
+    const isViewer = currentWorkspace && !currentWorkspace.isOwner && currentWorkspace.permission === 'viewer';
+
     return `
     <div id="export-content" class="max-w-7xl mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-semibold text-gray-900">Finished Projects</h2>
+            <div class="flex items-center gap-3">
+                <h2 class="text-xl font-semibold text-gray-900">Finished Projects</h2>
+                ${isViewer ? '<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">View Only</span>' : ''}
+            </div>
             <p class="text-gray-500 text-sm">${finished.length} completed</p>
         </div>
         ${finished.length === 0 ? `
@@ -489,8 +612,12 @@ const FinishedPage = () => {
                             <td class="px-4 py-3 text-sm text-gray-600">${formatDate(p.completedDate)}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">${daysBetween(p.startDate, p.endDate)} days</td>
                             <td class="px-4 py-3 text-right">
-                                <button onclick="reactivateProject('${p.odid}')" class="text-emerald-600 hover:text-emerald-800 text-sm font-medium mr-2">Reactivate</button>
-                                <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
+                                ${canEdit ? `
+                                    <button onclick="reactivateProject('${p.odid}')" class="text-emerald-600 hover:text-emerald-800 text-sm font-medium mr-2">Reactivate</button>
+                                    <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
+                                ` : `
+                                    <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View</button>
+                                `}
                             </td>
                         </tr>
                     `).join('')}
@@ -500,11 +627,18 @@ const FinishedPage = () => {
     </div>`;
 };
 
-const EditPage = () => `
+const EditPage = () => {
+    const canEdit = canEditWorkspace();
+    const isViewer = currentWorkspace && !currentWorkspace.isOwner && currentWorkspace.permission === 'viewer';
+
+    return `
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-semibold text-gray-900">Manage Projects</h2>
-            <button onclick="openProjectModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">+ Add Project</button>
+            <div class="flex items-center gap-3">
+                <h2 class="text-xl font-semibold text-gray-900">Manage Projects</h2>
+                ${isViewer ? '<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">View Only</span>' : ''}
+            </div>
+            ${canEdit ? `<button onclick="openProjectModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">+ Add Project</button>` : ''}
         </div>
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <table class="w-full">
@@ -520,7 +654,7 @@ const EditPage = () => `
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     ${projects.length === 0 ? `
-                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No projects. Click "Add Project" to create one.</td></tr>
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">${canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.'}</td></tr>
                     ` : projects.map(p => `
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
@@ -538,8 +672,12 @@ const EditPage = () => `
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${formatDate(p.startDate)} - ${formatDate(p.endDate)}</td>
                             <td class="px-4 py-3 text-right">
-                                <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium mr-2">Edit</button>
-                                <button onclick="deleteProject('${p.odid}')" class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+                                ${canEdit ? `
+                                    <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium mr-2">Edit</button>
+                                    <button onclick="deleteProject('${p.odid}')" class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+                                ` : `
+                                    <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">View</button>
+                                `}
                             </td>
                         </tr>
                     `).join('')}
@@ -548,6 +686,7 @@ const EditPage = () => `
         </div>
     </div>
 `;
+};
 
 const AdminPage = () => `
     <div class="max-w-4xl mx-auto px-4 py-8">
@@ -592,42 +731,51 @@ async function loadUsers() {
     }
 }
 
-const ProjectModal = (project = null) => `
+const ProjectModal = (project = null) => {
+    const canEdit = canEditWorkspace();
+    const isViewOnly = !canEdit && project;
+    const disabled = isViewOnly ? 'disabled' : '';
+    const disabledClass = isViewOnly ? 'bg-gray-100 cursor-not-allowed' : '';
+
+    return `
     <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
         <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div class="p-6 border-b border-gray-200">
-                <h3 class="text-lg font-semibold">${project ? 'Edit Project' : 'New Project'}</h3>
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold">${isViewOnly ? 'View Project' : (project ? 'Edit Project' : 'New Project')}</h3>
+                    ${isViewOnly ? '<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">View Only</span>' : ''}
+                </div>
             </div>
-            <form onsubmit="saveProject(event)" class="p-6 space-y-4">
+            <form onsubmit="${isViewOnly ? 'event.preventDefault(); closeModal();' : 'saveProject(event)'}" class="p-6 space-y-4">
                 <input type="hidden" id="projectId" value="${project?.odid || ''}">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
-                        <input type="text" id="projectName" value="${project?.name || ''}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Project Name ${isViewOnly ? '' : '*'}</label>
+                        <input type="text" id="projectName" value="${project?.name || ''}" ${isViewOnly ? '' : 'required'} ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
                     </div>
                     <div class="col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                        <textarea id="projectDesc" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">${project?.description || ''}</textarea>
+                        <textarea id="projectDesc" rows="2" ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">${project?.description || ''}</textarea>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Owner *</label>
-                        <input type="text" id="projectOwner" value="${project?.owner || ''}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Owner ${isViewOnly ? '' : '*'}</label>
+                        <input type="text" id="projectOwner" value="${project?.owner || ''}" ${isViewOnly ? '' : 'required'} ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Support Team</label>
-                        <input type="text" id="projectTeam" value="${project?.team || ''}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <input type="text" id="projectTeam" value="${project?.team || ''}" ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
-                        <input type="date" id="projectStart" value="${project?.startDate || ''}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Start Date ${isViewOnly ? '' : '*'}</label>
+                        <input type="date" id="projectStart" value="${project?.startDate || ''}" ${isViewOnly ? '' : 'required'} ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
-                        <input type="date" id="projectEnd" value="${project?.endDate || ''}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">End Date ${isViewOnly ? '' : '*'}</label>
+                        <input type="date" id="projectEnd" value="${project?.endDate || ''}" ${isViewOnly ? '' : 'required'} ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select id="projectStatus" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <select id="projectStatus" ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
                             <option value="discovery" ${project?.status === 'discovery' ? 'selected' : ''}>Discovery</option>
                             <option value="active" ${project?.status === 'active' ? 'selected' : ''}>Active</option>
                             <option value="on-track" ${project?.status === 'on-track' ? 'selected' : ''}>On Track</option>
@@ -638,54 +786,59 @@ const ProjectModal = (project = null) => `
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Progress (%)</label>
-                        <input type="number" id="projectProgress" min="0" max="100" value="${project?.progress || 0}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <input type="number" id="projectProgress" min="0" max="100" value="${project?.progress || 0}" ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
                     </div>
                 </div>
+                ${!isViewOnly ? `
                 <div class="flex items-center gap-2 pt-2">
                     <input type="checkbox" id="forceFinish" ${project && isFinished(project) ? 'checked' : ''} class="rounded">
                     <label for="forceFinish" class="text-sm text-gray-700">Move to Finished tab</label>
                 </div>
+                ` : ''}
                 <div class="border-t pt-4 mt-4">
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-sm font-medium text-gray-700">Sub-tasks</label>
-                        <button type="button" onclick="addTaskField()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Task</button>
+                        ${!isViewOnly ? `<button type="button" onclick="addTaskField()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Task</button>` : ''}
                     </div>
                     <div id="tasksList" class="space-y-2">
                         ${(project?.tasks || []).map(t => `
                             <div class="flex gap-2 items-center task-row">
-                                <input type="checkbox" ${t.completed ? 'checked' : ''} class="task-completed rounded">
-                                <input type="text" value="${t.name}" class="task-name flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                                <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 px-2">×</button>
+                                <input type="checkbox" ${t.completed ? 'checked' : ''} ${disabled} class="task-completed rounded ${disabledClass}">
+                                <input type="text" value="${t.name}" ${disabled} class="task-name flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm ${disabledClass}">
+                                ${!isViewOnly ? `<button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 px-2">×</button>` : ''}
                             </div>
                         `).join('')}
+                        ${isViewOnly && (!project?.tasks || project.tasks.length === 0) ? '<p class="text-sm text-gray-500 italic">No tasks</p>' : ''}
                     </div>
                 </div>
                 <div class="border-t pt-4 mt-4">
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-sm font-medium text-gray-700">Notes</label>
-                        <button type="button" onclick="addNoteField()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Note</button>
+                        ${!isViewOnly ? `<button type="button" onclick="addNoteField()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Note</button>` : ''}
                     </div>
                     <div id="notesList" class="space-y-2">
                         ${(project?.notes || []).map(n => `
                             <div class="note-row bg-gray-50 rounded-lg p-3">
                                 <div class="flex justify-between items-start mb-1">
                                     <span class="text-xs text-gray-400">${new Date(n.timestamp).toLocaleString()}</span>
-                                    <button type="button" onclick="this.closest('.note-row').remove()" class="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                                    ${!isViewOnly ? `<button type="button" onclick="this.closest('.note-row').remove()" class="text-red-500 hover:text-red-700 text-xs">Remove</button>` : ''}
                                 </div>
-                                <textarea class="note-text w-full px-2 py-1 border border-gray-300 rounded text-sm" rows="2">${n.text}</textarea>
+                                <textarea class="note-text w-full px-2 py-1 border border-gray-300 rounded text-sm ${disabledClass}" rows="2" ${disabled}>${n.text}</textarea>
                                 <input type="hidden" class="note-timestamp" value="${n.timestamp}">
                             </div>
                         `).join('')}
+                        ${isViewOnly && (!project?.notes || project.notes.length === 0) ? '<p class="text-sm text-gray-500 italic">No notes</p>' : ''}
                     </div>
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t">
-                    <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Project</button>
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">${isViewOnly ? 'Close' : 'Cancel'}</button>
+                    ${!isViewOnly ? `<button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Project</button>` : ''}
                 </div>
             </form>
         </div>
     </div>
 `;
+};
 
 // Functions
 function render() {
@@ -929,6 +1082,96 @@ async function renameWorkspace(id, currentName) {
         render();
     } catch (err) {
         alert('Error: ' + err.message);
+    }
+}
+
+async function showShareWorkspace(workspaceId) {
+    closeWorkspaceMenu();
+    await loadShareableUsers();
+    const shares = await loadWorkspaceShares(workspaceId);
+    const workspace = workspaces.find(w => w.id === workspaceId);
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold">Share "${workspace?.name || 'Workspace'}"</h3>
+                    <p class="text-sm text-gray-500 mt-1">Invite others to view or edit projects in this workspace</p>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="flex gap-2">
+                        <select id="shareUserSelect" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="">Select a user...</option>
+                            ${allUsers.filter(u => !shares.some(s => s.userId === u.id)).map(u => `
+                                <option value="${u.id}">${u.username}</option>
+                            `).join('')}
+                        </select>
+                        <select id="sharePermSelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="viewer">Viewer</option>
+                            <option value="editor">Editor</option>
+                        </select>
+                        <button onclick="handleAddShare(${workspaceId})" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Add</button>
+                    </div>
+                    <div class="border-t pt-4">
+                        <div class="text-sm font-medium text-gray-700 mb-2">Shared with</div>
+                        <div id="sharesList" class="space-y-2 max-h-64 overflow-y-auto">
+                            ${shares.length === 0 ? `
+                                <p class="text-sm text-gray-500 italic">Not shared with anyone yet</p>
+                            ` : shares.map(s => `
+                                <div class="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg" data-share-id="${s.id}">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                                            ${s.username.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span class="font-medium text-gray-700">${s.username}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <select onchange="handleUpdateShare(${workspaceId}, ${s.id}, this.value)" class="text-sm px-2 py-1 border border-gray-300 rounded">
+                                            <option value="viewer" ${s.permission === 'viewer' ? 'selected' : ''}>Viewer</option>
+                                            <option value="editor" ${s.permission === 'editor' ? 'selected' : ''}>Editor</option>
+                                        </select>
+                                        <button onclick="handleRemoveShare(${workspaceId}, ${s.id})" class="text-red-500 hover:text-red-700 text-sm">Remove</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 border-t flex justify-end">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Done</button>
+                </div>
+            </div>
+        </div>
+    `);
+}
+
+async function handleAddShare(workspaceId) {
+    const userId = parseInt(document.getElementById('shareUserSelect').value);
+    const permission = document.getElementById('sharePermSelect').value;
+    if (!userId) { alert('Please select a user'); return; }
+
+    const success = await addWorkspaceShare(workspaceId, userId, permission);
+    if (success) {
+        closeModal();
+        await showShareWorkspace(workspaceId);
+    }
+}
+
+async function handleUpdateShare(workspaceId, shareId, permission) {
+    await updateWorkspaceShare(workspaceId, shareId, permission);
+}
+
+async function handleRemoveShare(workspaceId, shareId) {
+    if (confirm('Remove this user from the workspace?')) {
+        const success = await removeWorkspaceShare(workspaceId, shareId);
+        if (success) {
+            document.querySelector(`[data-share-id="${shareId}"]`)?.remove();
+            // Check if shares list is now empty
+            const sharesList = document.getElementById('sharesList');
+            if (sharesList && !sharesList.querySelector('[data-share-id]')) {
+                sharesList.innerHTML = '<p class="text-sm text-gray-500 italic">Not shared with anyone yet</p>';
+            }
+        }
     }
 }
 
@@ -1205,6 +1448,16 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.8.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Workspace Sharing - share workspaces with other users</li>
+                                    <li>Two permission levels: Viewer (read-only) and Editor (can edit)</li>
+                                    <li>Share management modal for workspace owners</li>
+                                    <li>Visual indicators for shared workspaces</li>
+                                    <li>Permission-based UI (view-only mode for viewers)</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.7.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
