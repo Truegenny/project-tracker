@@ -717,10 +717,13 @@ const OverviewPage = () => {
                             <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
                             <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
-                                <div class="progress-bar h-6">
-                                    <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${Math.max(p.progress, 12)}%">
-                                        <span>${p.progress}%</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="progress-bar h-6 flex-1">
+                                        <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${Math.max(p.progress, 5)}%">
+                                            ${p.progress >= 15 ? `<span>${p.progress}%</span>` : ''}
+                                        </div>
                                     </div>
+                                    ${p.progress < 15 ? `<span class="text-xs font-medium text-gray-600 w-8">${p.progress}%</span>` : ''}
                                 </div>
                             </td>
                             <td class="px-4 py-3">
@@ -849,10 +852,13 @@ const EditPage = () => {
                             <td class="px-4 py-3 text-sm text-gray-700">${p.owner}</td>
                             <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
-                                <div class="progress-bar h-5">
-                                    <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${Math.max(p.progress, 15)}%">
-                                        <span class="text-xs">${p.progress}%</span>
+                                <div class="flex items-center gap-2">
+                                    <div class="progress-bar h-5 flex-1">
+                                        <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${Math.max(p.progress, 5)}%">
+                                            ${p.progress >= 15 ? `<span class="text-xs">${p.progress}%</span>` : ''}
+                                        </div>
                                     </div>
+                                    ${p.progress < 15 ? `<span class="text-xs font-medium text-gray-600 w-8">${p.progress}%</span>` : ''}
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${formatDate(p.startDate)} - ${formatDate(p.endDate)}</td>
