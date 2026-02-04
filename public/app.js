@@ -224,8 +224,24 @@ const Header = () => `
                 <button onclick="switchView('finished')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'finished' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Finished</button>
                 <button onclick="switchView('edit')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'edit' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Edit Projects</button>
                 ${currentUser?.isAdmin ? `<button onclick="switchView('admin')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'admin' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Users</button>` : ''}
-                <button onclick="exportPDF()" class="px-4 py-2 rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition">PDF</button>
-                <button onclick="exportCSV()" class="px-4 py-2 rounded-lg font-medium bg-amber-600 text-white hover:bg-amber-700 transition">CSV</button>
+                <div class="relative">
+                    <button onclick="toggleExportMenu()" class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition">
+                        <span>Export</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="exportMenu" class="hidden absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                        <div class="p-2">
+                            <button onclick="exportPDF(); closeExportMenu();" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
+                                <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path></svg>
+                                <span>Export PDF</span>
+                            </button>
+                            <button onclick="exportCSV(); closeExportMenu();" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
+                                <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2zm0 6a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clip-rule="evenodd"></path></svg>
+                                <span>Export CSV</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <div class="relative">
                     <button onclick="toggleSettings()" class="px-3 py-2 rounded-lg font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -809,15 +825,27 @@ async function toggleDemoMode() {
 function toggleSettings() {
     document.getElementById('settingsMenu')?.classList.toggle('hidden');
     document.getElementById('workspaceMenu')?.classList.add('hidden');
+    document.getElementById('exportMenu')?.classList.add('hidden');
 }
 
 function closeSettings() {
     document.getElementById('settingsMenu')?.classList.add('hidden');
 }
 
+function toggleExportMenu() {
+    document.getElementById('exportMenu')?.classList.toggle('hidden');
+    document.getElementById('settingsMenu')?.classList.add('hidden');
+    document.getElementById('workspaceMenu')?.classList.add('hidden');
+}
+
+function closeExportMenu() {
+    document.getElementById('exportMenu')?.classList.add('hidden');
+}
+
 function toggleWorkspaceMenu() {
     document.getElementById('workspaceMenu')?.classList.toggle('hidden');
     document.getElementById('settingsMenu')?.classList.add('hidden');
+    document.getElementById('exportMenu')?.classList.add('hidden');
 }
 
 function closeWorkspaceMenu() {
@@ -1342,9 +1370,11 @@ function exportCSV() {
 document.addEventListener('click', (e) => {
     const settingsMenu = document.getElementById('settingsMenu');
     const workspaceMenu = document.getElementById('workspaceMenu');
+    const exportMenu = document.getElementById('exportMenu');
     if (!e.target.closest('.relative')) {
         if (settingsMenu) closeSettings();
         if (workspaceMenu) closeWorkspaceMenu();
+        if (exportMenu) closeExportMenu();
     }
 });
 
