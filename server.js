@@ -37,7 +37,6 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     odid TEXT UNIQUE NOT NULL,
     userId INTEGER NOT NULL,
-    workspaceId INTEGER,
     name TEXT NOT NULL,
     description TEXT,
     owner TEXT NOT NULL,
@@ -50,20 +49,26 @@ db.exec(`
     tasks TEXT DEFAULT '[]',
     createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
     updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (userId) REFERENCES users(id),
-    FOREIGN KEY (workspaceId) REFERENCES workspaces(id)
+    FOREIGN KEY (userId) REFERENCES users(id)
   );
 
   CREATE INDEX IF NOT EXISTS idx_projects_userId ON projects(userId);
-  CREATE INDEX IF NOT EXISTS idx_projects_workspaceId ON projects(workspaceId);
   CREATE INDEX IF NOT EXISTS idx_workspaces_userId ON workspaces(userId);
 `);
 
 // Migration: Add workspaceId column if it doesn't exist
 try {
-  db.exec('ALTER TABLE projects ADD COLUMN workspaceId INTEGER');
+  db.exec('ALTER TABLE projects ADD COLUMN workspaceId INTEGER REFERENCES workspaces(id)');
+  console.log('Migration: Added workspaceId column to projects table');
 } catch (e) {
-  // Column already exists
+  // Column already exists, ignore
+}
+
+// Create index for workspaceId (after migration ensures column exists)
+try {
+  db.exec('CREATE INDEX IF NOT EXISTS idx_projects_workspaceId ON projects(workspaceId)');
+} catch (e) {
+  // Index might already exist
 }
 
 // Create default admin user if not exists
