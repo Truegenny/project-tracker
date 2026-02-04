@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.9.0';
+const APP_VERSION = '2.9.1';
 
 // State Management
 let projects = [];
@@ -574,6 +574,8 @@ const ProjectCard = (project) => {
     const daysRemaining = daysBetween(new Date(), project.endDate);
     const hasStarted = new Date() >= new Date(project.startDate);
     const pid = project.odid || project.id;
+    const lastUpdatedDate = project.updatedAt ? formatDate(project.updatedAt) : formatDate(project.createdAt);
+    const lastUpdatedBy = project.lastUpdatedBy || 'Unknown';
 
     return `
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4" data-project-id="${pid}">
@@ -588,6 +590,10 @@ const ProjectCard = (project) => {
                     </button>
                     <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBg(project.status)}">${project.status.replace('-', ' ').toUpperCase()}</span>
                 </div>
+            </div>
+            <div class="mb-4 text-xs text-gray-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Last updated by <span class="font-medium text-gray-500">${lastUpdatedBy}</span> on ${lastUpdatedDate}
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
                 <div><span class="text-gray-500">Owner:</span> <span class="font-medium">${project.owner}</span></div>
@@ -695,13 +701,16 @@ const OverviewPage = () => {
                         <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Owner</th>
                         <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
                         <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Progress</th>
-                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-1/3">Timeline</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Timeline</th>
+                        <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Last Updated</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     ${sorted.map(p => {
                         const timelinePos = getTimelineProgress(p.startDate, p.endDate);
                         const started = new Date() >= new Date(p.startDate);
+                        const lastUpdated = p.updatedAt ? formatDate(p.updatedAt) : formatDate(p.createdAt);
+                        const updatedBy = p.lastUpdatedBy || 'Unknown';
                         return `
                         <tr class="${p.status === 'behind' ? 'bg-red-50' : ''}">
                             <td class="px-4 py-3 font-medium text-gray-900">${p.name}</td>
@@ -723,6 +732,10 @@ const OverviewPage = () => {
                                     </div>
                                     <span class="w-16 text-right">${formatDate(p.endDate).split(',')[0]}</span>
                                 </div>
+                            </td>
+                            <td class="px-4 py-3 text-xs text-gray-500">
+                                <div class="font-medium text-gray-700">${updatedBy}</div>
+                                <div>${lastUpdated}</div>
                             </td>
                         </tr>`;
                     }).join('')}
@@ -1623,6 +1636,14 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.9.1 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Last Updated By - shows who last modified each project</li>
+                                    <li>Visible in both Overview (detailed) and Simple views</li>
+                                    <li>Helps execs verify info is current</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.9.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
