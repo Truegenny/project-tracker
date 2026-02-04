@@ -180,22 +180,22 @@ const LoginPage = () => `
 // Header Component
 const Header = () => `
     <header class="bg-white shadow-sm border-b border-gray-200 no-print">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-4">
-                <h1 class="text-2xl font-bold text-gray-900">Ntiva Integration Project Tracker <span class="text-sm font-normal text-blue-600">v${APP_VERSION}</span></h1>
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-4 flex-shrink-0">
+                <h1 class="text-2xl font-bold text-gray-900 whitespace-nowrap">Ntiva Integration Project Tracker <span class="text-sm font-normal text-blue-600">v${APP_VERSION}</span></h1>
                 <div class="relative">
-                    <button onclick="toggleWorkspaceMenu()" class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                        <span>${currentWorkspace?.name || 'Select Workspace'}</span>
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <button onclick="toggleWorkspaceMenu()" class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition max-w-[200px]">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        <span class="truncate">${currentWorkspace?.name || 'Select Workspace'}</span>
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <div id="workspaceMenu" class="hidden absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                         <div class="p-2">
                             <div class="px-3 py-2 text-xs text-gray-500 border-b mb-1 font-medium">WORKSPACES</div>
                             ${workspaces.map(w => `
-                                <button onclick="switchWorkspace(${w.id})" class="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg ${currentWorkspace?.id === w.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}">
-                                    <span>${w.name}</span>
-                                    ${currentWorkspace?.id === w.id ? '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' : ''}
+                                <button onclick="switchWorkspace(${w.id})" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg ${currentWorkspace?.id === w.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}">
+                                    <span class="truncate">${w.name}</span>
+                                    ${currentWorkspace?.id === w.id ? '<svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' : ''}
                                 </button>
                             `).join('')}
                             <div class="border-t my-1"></div>
@@ -819,11 +819,11 @@ function showManageWorkspaces() {
                 <div class="p-6 border-b border-gray-200"><h3 class="text-lg font-semibold">Manage Workspaces</h3></div>
                 <div class="p-6 space-y-2" id="workspaceList">
                     ${workspaces.map(w => `
-                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <span class="font-medium ${currentWorkspace?.id === w.id ? 'text-blue-600' : 'text-gray-700'}">${w.name}</span>
-                            <div class="flex gap-2">
-                                <button onclick="renameWorkspace(${w.id}, '${w.name}')" class="text-sm text-blue-600 hover:text-blue-800">Rename</button>
-                                ${workspaces.length > 1 ? `<button onclick="deleteWorkspace(${w.id}, '${w.name}')" class="text-sm text-red-600 hover:text-red-800">Delete</button>` : ''}
+                        <div class="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg">
+                            <span class="font-medium truncate ${currentWorkspace?.id === w.id ? 'text-blue-600' : 'text-gray-700'}">${w.name}</span>
+                            <div class="flex gap-2 flex-shrink-0">
+                                <button onclick="renameWorkspace(${w.id}, '${w.name.replace(/'/g, "\\'")}')" class="text-sm text-blue-600 hover:text-blue-800">Rename</button>
+                                ${workspaces.length > 1 ? `<button onclick="deleteWorkspace(${w.id}, '${w.name.replace(/'/g, "\\'")}')" class="text-sm text-red-600 hover:text-red-800">Delete</button>` : ''}
                             </div>
                         </div>
                     `).join('')}
