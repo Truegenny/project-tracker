@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 
 // State Management
 let projects = [];
@@ -8,6 +8,7 @@ let currentUser = null;
 let token = localStorage.getItem('token');
 let darkMode = localStorage.getItem('darkMode') === 'true';
 let simpleView = localStorage.getItem('simpleView') === 'true';
+let demoMode = false;
 
 // Apply dark mode on load
 if (darkMode) document.body.classList.add('dark');
@@ -75,6 +76,7 @@ async function loadProjects() {
     try {
         projects = await api('/projects');
         updateAllStatuses();
+        demoMode = projects.some(p => p.name.startsWith('[DEMO]'));
     } catch (err) {
         console.error('Failed to load projects:', err);
     }
@@ -189,6 +191,11 @@ const Header = () => `
                             <button onclick="showInfo()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
                                 <span>ℹ️</span>
                                 <span>About</span>
+                            </button>
+                            <div class="border-t my-1"></div>
+                            <button onclick="toggleDemoMode()" class="w-full flex items-center gap-3 px-3 py-2 text-sm ${demoMode ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-400 hover:bg-gray-100'} rounded-lg">
+                                <span>🧪</span>
+                                <span>${demoMode ? 'Remove Demo Data' : 'Load Demo Data'}</span>
                             </button>
                             <button onclick="logout()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg">
                                 <span>🚪</span>
@@ -594,6 +601,110 @@ function toggleSimpleView() {
     render();
 }
 
+async function toggleDemoMode() {
+    closeSettings();
+
+    if (demoMode) {
+        // Remove demo projects
+        const demoProjects = projects.filter(p => p.name.startsWith('[DEMO]'));
+        for (const p of demoProjects) {
+            await api(`/projects/${p.odid}`, { method: 'DELETE' });
+        }
+        demoMode = false;
+        await loadProjects();
+        render();
+    } else {
+        // Create demo projects
+        const today = new Date();
+        const demoData = [
+            {
+                name: '[DEMO] Cloud Migration',
+                description: 'Migrate on-premise infrastructure to AWS',
+                owner: 'Sarah Chen',
+                team: 'Infrastructure',
+                startDate: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                endDate: new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                status: 'on-track',
+                progress: 45,
+                tasks: [
+                    { name: 'Assessment complete', completed: true },
+                    { name: 'Network setup', completed: true },
+                    { name: 'Data migration', completed: false },
+                    { name: 'Testing & validation', completed: false }
+                ]
+            },
+            {
+                name: '[DEMO] CRM Integration',
+                description: 'Connect Salesforce with internal systems',
+                owner: 'Mike Johnson',
+                team: 'Sales Ops',
+                startDate: new Date(today.getTime() - 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                endDate: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                status: 'behind',
+                progress: 70,
+                tasks: [
+                    { name: 'API mapping', completed: true },
+                    { name: 'Data sync setup', completed: true },
+                    { name: 'User training', completed: false }
+                ]
+            },
+            {
+                name: '[DEMO] Security Audit',
+                description: 'Annual security compliance review',
+                owner: 'Alex Rivera',
+                team: 'Security',
+                startDate: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                endDate: new Date(today.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                status: 'active',
+                progress: 25,
+                tasks: [
+                    { name: 'Vulnerability scan', completed: true },
+                    { name: 'Penetration testing', completed: false },
+                    { name: 'Report generation', completed: false }
+                ]
+            },
+            {
+                name: '[DEMO] Mobile App Launch',
+                description: 'Release new customer mobile application',
+                owner: 'Emma Wilson',
+                team: 'Product',
+                startDate: new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                endDate: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                status: 'on-track',
+                progress: 85,
+                tasks: [
+                    { name: 'Development', completed: true },
+                    { name: 'QA testing', completed: true },
+                    { name: 'App store submission', completed: true },
+                    { name: 'Marketing launch', completed: false }
+                ]
+            },
+            {
+                name: '[DEMO] Data Warehouse',
+                description: 'Build centralized reporting platform',
+                owner: 'David Park',
+                team: 'Data',
+                startDate: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                endDate: new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                status: 'discovery',
+                progress: 0,
+                tasks: [
+                    { name: 'Requirements gathering', completed: false },
+                    { name: 'Architecture design', completed: false },
+                    { name: 'ETL development', completed: false }
+                ]
+            }
+        ];
+
+        for (const project of demoData) {
+            await api('/projects', { method: 'POST', body: JSON.stringify(project) });
+        }
+        demoMode = true;
+        await loadProjects();
+        render();
+    }
+}
+
 function toggleSettings() {
     document.getElementById('settingsMenu')?.classList.toggle('hidden');
 }
@@ -831,6 +942,14 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.3.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Added demo mode toggle in settings menu</li>
+                                    <li>Creates sample projects to showcase features</li>
+                                    <li>Toggle removes demo data when disabled</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.2.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
