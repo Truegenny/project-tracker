@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 
 // State Management
 let projects = [];
@@ -7,6 +7,7 @@ let currentView = 'overview';
 let currentUser = null;
 let token = localStorage.getItem('token');
 let darkMode = localStorage.getItem('darkMode') === 'true';
+let simpleView = localStorage.getItem('simpleView') === 'true';
 
 // Apply dark mode on load
 if (darkMode) document.body.classList.add('dark');
@@ -165,7 +166,6 @@ const Header = () => `
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <h1 class="text-2xl font-bold text-gray-900">Ntiva Integration Project Tracker <span class="text-sm font-normal text-blue-600">v${APP_VERSION}</span></h1>
             <nav class="flex gap-2 items-center">
-                <button onclick="switchView('simple')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Simple</button>
                 <button onclick="switchView('overview')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'overview' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Overview</button>
                 <button onclick="switchView('finished')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'finished' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Finished</button>
                 <button onclick="switchView('edit')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'edit' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Edit Projects</button>
@@ -272,33 +272,29 @@ const ProjectCard = (project) => {
 
 const OverviewPage = () => {
     const active = activeProjects();
-    return `
-    <div id="export-content" class="max-w-7xl mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-semibold text-gray-900">Project Overview</h2>
-            <p class="text-gray-500 text-sm">Last updated: ${new Date().toLocaleString()}</p>
-        </div>
-        ${active.length === 0 ? `
-            <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
-                <p class="text-gray-500">No active projects.</p>
-            </div>
-        ` : active.map(ProjectCard).join('')}
-    </div>`;
-};
+    const sorted = sortByBehindFirst(active);
 
-const SimplePage = () => {
-    const sorted = sortByBehindFirst(activeProjects());
-    return `
-    <div id="export-content" class="max-w-7xl mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-semibold text-gray-900">Simplified Overview</h2>
-            <p class="text-gray-500 text-sm">${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+    const toggleHtml = `
+        <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500">Detailed</span>
+            <button onclick="toggleSimpleView()" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${simpleView ? 'bg-blue-600' : 'bg-gray-300'}">
+                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${simpleView ? 'translate-x-6' : 'translate-x-1'}"></span>
+            </button>
+            <span class="text-sm text-gray-500">Simple</span>
         </div>
-        ${sorted.length === 0 ? `
-            <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
-                <p class="text-gray-500">No active projects.</p>
-            </div>
-        ` : `
+    `;
+
+    const detailedView = active.length === 0 ? `
+        <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
+            <p class="text-gray-500">No active projects.</p>
+        </div>
+    ` : active.map(ProjectCard).join('');
+
+    const simpleTableView = sorted.length === 0 ? `
+        <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
+            <p class="text-gray-500">No active projects.</p>
+        </div>
+    ` : `
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <table class="w-full">
                 <thead class="bg-gray-50 border-b border-gray-200">
@@ -340,7 +336,18 @@ const SimplePage = () => {
                     }).join('')}
                 </tbody>
             </table>
-        </div>`}
+        </div>`;
+
+    return `
+    <div id="export-content" class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold text-gray-900">Project Overview</h2>
+            <div class="flex items-center gap-4">
+                ${toggleHtml}
+                <p class="text-gray-500 text-sm">${new Date().toLocaleString()}</p>
+            </div>
+        </div>
+        ${simpleView ? simpleTableView : detailedView}
     </div>`;
 };
 
@@ -563,7 +570,7 @@ function render() {
         return;
     }
     updateAllStatuses();
-    const pages = { simple: SimplePage, overview: OverviewPage, edit: EditPage, finished: FinishedPage, admin: AdminPage };
+    const pages = { overview: OverviewPage, edit: EditPage, finished: FinishedPage, admin: AdminPage };
     document.getElementById('app').innerHTML = Header() + (pages[currentView] || OverviewPage)();
     if (currentView === 'admin') loadUsers();
 }
@@ -578,6 +585,12 @@ function toggleDarkMode() {
     localStorage.setItem('darkMode', darkMode);
     document.body.classList.toggle('dark', darkMode);
     closeSettings();
+    render();
+}
+
+function toggleSimpleView() {
+    simpleView = !simpleView;
+    localStorage.setItem('simpleView', simpleView);
     render();
 }
 
@@ -818,6 +831,14 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.2.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Combined Simple/Overview into single tab with toggle</li>
+                                    <li>Toggle preference saved to localStorage</li>
+                                    <li>Cleaner navigation with fewer tabs</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.1.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
