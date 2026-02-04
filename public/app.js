@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.8.1';
 
 // State Management
 let projects = [];
@@ -1477,11 +1477,19 @@ function showInfo() {
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
                             <div>
+                                <p class="font-medium text-gray-800">v2.8.1 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Leave Workspace - users can leave workspaces shared with them</li>
+                                    <li>Auto-switches to owned workspace after leaving</li>
+                                </ul>
+                            </div>
+                            <div>
                                 <p class="font-medium text-gray-800">v2.8.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
                                     <li>Workspace Sharing - share workspaces with other users</li>
                                     <li>Two permission levels: Viewer (read-only) and Editor (can edit)</li>
                                     <li>Share management modal for workspace owners</li>
+                                    <li>Owners can remove shared users from the Share modal</li>
                                     <li>Visual indicators for shared workspaces</li>
                                     <li>Permission-based UI (view-only mode for viewers)</li>
                                 </ul>
