@@ -25,10 +25,19 @@ db.exec(`
     createdAt TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS workspaces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (userId) REFERENCES users(id)
+  );
+
   CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     odid TEXT UNIQUE NOT NULL,
     userId INTEGER NOT NULL,
+    workspaceId INTEGER,
     name TEXT NOT NULL,
     description TEXT,
     owner TEXT NOT NULL,
@@ -41,11 +50,21 @@ db.exec(`
     tasks TEXT DEFAULT '[]',
     createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
     updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (userId) REFERENCES users(id)
+    FOREIGN KEY (userId) REFERENCES users(id),
+    FOREIGN KEY (workspaceId) REFERENCES workspaces(id)
   );
 
   CREATE INDEX IF NOT EXISTS idx_projects_userId ON projects(userId);
+  CREATE INDEX IF NOT EXISTS idx_projects_workspaceId ON projects(workspaceId);
+  CREATE INDEX IF NOT EXISTS idx_workspaces_userId ON workspaces(userId);
 `);
+
+// Migration: Add workspaceId column if it doesn't exist
+try {
+  db.exec('ALTER TABLE projects ADD COLUMN workspaceId INTEGER');
+} catch (e) {
+  // Column already exists
+}
 
 // Create default admin user if not exists
 const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
@@ -149,21 +168,76 @@ app.put('/api/admin/users/:id/password', authenticate, requireAdmin, (req, res) 
   res.json({ success: true });
 });
 
+// Workspace routes
+app.get('/api/workspaces', authenticate, (req, res) => {
+  let workspaces = db.prepare('SELECT * FROM workspaces WHERE userId = ? ORDER BY createdAt ASC').all(req.user.id);
+
+  // Create default workspace if none exist
+  if (workspaces.length === 0) {
+    const result = db.prepare('INSERT INTO workspaces (userId, name) VALUES (?, ?)').run(req.user.id, 'Default');
+    workspaces = [{ id: result.lastInsertRowid, userId: req.user.id, name: 'Default' }];
+    // Assign existing projects to default workspace
+    db.prepare('UPDATE projects SET workspaceId = ? WHERE userId = ? AND workspaceId IS NULL').run(result.lastInsertRowid, req.user.id);
+  }
+
+  res.json(workspaces);
+});
+
+app.post('/api/workspaces', authenticate, (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'Workspace name required' });
+
+  const result = db.prepare('INSERT INTO workspaces (userId, name) VALUES (?, ?)').run(req.user.id, name);
+  res.json({ id: result.lastInsertRowid, name, success: true });
+});
+
+app.put('/api/workspaces/:id', authenticate, (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'Workspace name required' });
+
+  const workspace = db.prepare('SELECT * FROM workspaces WHERE id = ? AND userId = ?').get(req.params.id, req.user.id);
+  if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+
+  db.prepare('UPDATE workspaces SET name = ? WHERE id = ?').run(name, req.params.id);
+  res.json({ success: true });
+});
+
+app.delete('/api/workspaces/:id', authenticate, (req, res) => {
+  const workspaces = db.prepare('SELECT * FROM workspaces WHERE userId = ?').all(req.user.id);
+  if (workspaces.length <= 1) return res.status(400).json({ error: 'Cannot delete the only workspace' });
+
+  const workspace = db.prepare('SELECT * FROM workspaces WHERE id = ? AND userId = ?').get(req.params.id, req.user.id);
+  if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+
+  // Delete all projects in this workspace
+  db.prepare('DELETE FROM projects WHERE workspaceId = ? AND userId = ?').run(req.params.id, req.user.id);
+  db.prepare('DELETE FROM workspaces WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
 // Project routes
 app.get('/api/projects', authenticate, (req, res) => {
-  const projects = db.prepare('SELECT * FROM projects WHERE userId = ? ORDER BY createdAt DESC').all(req.user.id);
+  const workspaceId = req.query.workspaceId;
+  let projects;
+
+  if (workspaceId) {
+    projects = db.prepare('SELECT * FROM projects WHERE userId = ? AND workspaceId = ? ORDER BY createdAt DESC').all(req.user.id, workspaceId);
+  } else {
+    projects = db.prepare('SELECT * FROM projects WHERE userId = ? ORDER BY createdAt DESC').all(req.user.id);
+  }
+
   res.json(projects.map(p => ({ ...p, tasks: JSON.parse(p.tasks || '[]') })));
 });
 
 app.post('/api/projects', authenticate, (req, res) => {
-  const { name, description, owner, team, startDate, endDate, status, progress, tasks, completedDate } = req.body;
+  const { name, description, owner, team, startDate, endDate, status, progress, tasks, completedDate, workspaceId } = req.body;
   if (!name || !owner || !startDate || !endDate) return res.status(400).json({ error: 'Missing required fields' });
 
   const odid = Date.now().toString(36) + Math.random().toString(36).substr(2);
   const result = db.prepare(`
-    INSERT INTO projects (odid, userId, name, description, owner, team, startDate, endDate, status, progress, tasks, completedDate)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(odid, req.user.id, name, description || '', owner, team || '', startDate, endDate, status || 'active', progress || 0, JSON.stringify(tasks || []), completedDate || null);
+    INSERT INTO projects (odid, userId, workspaceId, name, description, owner, team, startDate, endDate, status, progress, tasks, completedDate)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(odid, req.user.id, workspaceId || null, name, description || '', owner, team || '', startDate, endDate, status || 'active', progress || 0, JSON.stringify(tasks || []), completedDate || null);
 
   res.json({ id: odid, success: true });
 });

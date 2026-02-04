@@ -1,8 +1,10 @@
 // Version
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.4.0';
 
 // State Management
 let projects = [];
+let workspaces = [];
+let currentWorkspace = null;
 let currentView = 'overview';
 let currentUser = null;
 let token = localStorage.getItem('token');
@@ -72,9 +74,22 @@ async function checkAuth() {
     }
 }
 
+async function loadWorkspaces() {
+    try {
+        workspaces = await api('/workspaces');
+        if (!currentWorkspace && workspaces.length > 0) {
+            const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
+            currentWorkspace = workspaces.find(w => w.id == savedWorkspaceId) || workspaces[0];
+        }
+    } catch (err) {
+        console.error('Failed to load workspaces:', err);
+    }
+}
+
 async function loadProjects() {
     try {
-        projects = await api('/projects');
+        const endpoint = currentWorkspace ? `/projects?workspaceId=${currentWorkspace.id}` : '/projects';
+        projects = await api(endpoint);
         updateAllStatuses();
         demoMode = projects.some(p => p.name.startsWith('[DEMO]'));
     } catch (err) {
@@ -166,7 +181,38 @@ const LoginPage = () => `
 const Header = () => `
     <header class="bg-white shadow-sm border-b border-gray-200 no-print">
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-gray-900">Ntiva Integration Project Tracker <span class="text-sm font-normal text-blue-600">v${APP_VERSION}</span></h1>
+            <div class="flex items-center gap-4">
+                <h1 class="text-2xl font-bold text-gray-900">Ntiva Integration Project Tracker <span class="text-sm font-normal text-blue-600">v${APP_VERSION}</span></h1>
+                <div class="relative">
+                    <button onclick="toggleWorkspaceMenu()" class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        <span>${currentWorkspace?.name || 'Select Workspace'}</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="workspaceMenu" class="hidden absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                        <div class="p-2">
+                            <div class="px-3 py-2 text-xs text-gray-500 border-b mb-1 font-medium">WORKSPACES</div>
+                            ${workspaces.map(w => `
+                                <button onclick="switchWorkspace(${w.id})" class="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg ${currentWorkspace?.id === w.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}">
+                                    <span>${w.name}</span>
+                                    ${currentWorkspace?.id === w.id ? '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' : ''}
+                                </button>
+                            `).join('')}
+                            <div class="border-t my-1"></div>
+                            <button onclick="showCreateWorkspace()" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                New Workspace
+                            </button>
+                            ${workspaces.length > 1 ? `
+                            <button onclick="showManageWorkspaces()" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                Manage Workspaces
+                            </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
             <nav class="flex gap-2 items-center">
                 <button onclick="switchView('overview')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'overview' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Overview</button>
                 <button onclick="switchView('finished')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'finished' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Finished</button>
@@ -697,7 +743,7 @@ async function toggleDemoMode() {
         ];
 
         for (const project of demoData) {
-            await api('/projects', { method: 'POST', body: JSON.stringify(project) });
+            await api('/projects', { method: 'POST', body: JSON.stringify({ ...project, workspaceId: currentWorkspace?.id }) });
         }
         demoMode = true;
         await loadProjects();
@@ -707,10 +753,117 @@ async function toggleDemoMode() {
 
 function toggleSettings() {
     document.getElementById('settingsMenu')?.classList.toggle('hidden');
+    document.getElementById('workspaceMenu')?.classList.add('hidden');
 }
 
 function closeSettings() {
     document.getElementById('settingsMenu')?.classList.add('hidden');
+}
+
+function toggleWorkspaceMenu() {
+    document.getElementById('workspaceMenu')?.classList.toggle('hidden');
+    document.getElementById('settingsMenu')?.classList.add('hidden');
+}
+
+function closeWorkspaceMenu() {
+    document.getElementById('workspaceMenu')?.classList.add('hidden');
+}
+
+async function switchWorkspace(workspaceId) {
+    currentWorkspace = workspaces.find(w => w.id === workspaceId);
+    localStorage.setItem('currentWorkspaceId', workspaceId);
+    closeWorkspaceMenu();
+    await loadProjects();
+    render();
+}
+
+function showCreateWorkspace() {
+    closeWorkspaceMenu();
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+                <div class="p-6 border-b border-gray-200"><h3 class="text-lg font-semibold">Create New Workspace</h3></div>
+                <form onsubmit="createWorkspace(event)" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+                        <input type="text" id="workspaceName" required placeholder="e.g., Q1 Planning, Client Projects" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Create Workspace</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `);
+}
+
+async function createWorkspace(e) {
+    e.preventDefault();
+    const name = document.getElementById('workspaceName').value;
+    try {
+        const result = await api('/workspaces', { method: 'POST', body: JSON.stringify({ name }) });
+        await loadWorkspaces();
+        await switchWorkspace(result.id);
+        closeModal();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+function showManageWorkspaces() {
+    closeWorkspaceMenu();
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+                <div class="p-6 border-b border-gray-200"><h3 class="text-lg font-semibold">Manage Workspaces</h3></div>
+                <div class="p-6 space-y-2" id="workspaceList">
+                    ${workspaces.map(w => `
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <span class="font-medium ${currentWorkspace?.id === w.id ? 'text-blue-600' : 'text-gray-700'}">${w.name}</span>
+                            <div class="flex gap-2">
+                                <button onclick="renameWorkspace(${w.id}, '${w.name}')" class="text-sm text-blue-600 hover:text-blue-800">Rename</button>
+                                ${workspaces.length > 1 ? `<button onclick="deleteWorkspace(${w.id}, '${w.name}')" class="text-sm text-red-600 hover:text-red-800">Delete</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="p-4 border-t flex justify-end">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg">Close</button>
+                </div>
+            </div>
+        </div>
+    `);
+}
+
+async function renameWorkspace(id, currentName) {
+    const newName = prompt('Enter new workspace name:', currentName);
+    if (!newName || newName === currentName) return;
+    try {
+        await api(`/workspaces/${id}`, { method: 'PUT', body: JSON.stringify({ name: newName }) });
+        await loadWorkspaces();
+        closeModal();
+        render();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function deleteWorkspace(id, name) {
+    if (!confirm(`Delete workspace "${name}"? All projects in this workspace will be deleted.`)) return;
+    try {
+        await api(`/workspaces/${id}`, { method: 'DELETE' });
+        await loadWorkspaces();
+        if (currentWorkspace?.id === id) {
+            currentWorkspace = workspaces[0];
+            localStorage.setItem('currentWorkspaceId', currentWorkspace.id);
+        }
+        await loadProjects();
+        closeModal();
+        render();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
 }
 
 function toggleTasks(projectId) {
@@ -767,7 +920,7 @@ async function saveProject(e) {
         if (id) {
             await api(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(projectData) });
         } else {
-            await api('/projects', { method: 'POST', body: JSON.stringify(projectData) });
+            await api('/projects', { method: 'POST', body: JSON.stringify({ ...projectData, workspaceId: currentWorkspace?.id }) });
         }
         await loadProjects();
         closeModal();
@@ -943,6 +1096,15 @@ function showInfo() {
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
                             <div>
+                                <p class="font-medium text-gray-800">v2.4.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Added Workspaces feature for separate project collections</li>
+                                    <li>Create, rename, and delete workspaces</li>
+                                    <li>Switch between workspaces from header dropdown</li>
+                                    <li>Projects isolated per workspace</li>
+                                </ul>
+                            </div>
+                            <div>
                                 <p class="font-medium text-gray-800">v2.3.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
                                     <li>Added demo mode toggle in settings menu</li>
@@ -1022,13 +1184,18 @@ async function exportPDF() {
 }
 
 document.addEventListener('click', (e) => {
-    const menu = document.getElementById('settingsMenu');
-    if (menu && !e.target.closest('.relative')) closeSettings();
+    const settingsMenu = document.getElementById('settingsMenu');
+    const workspaceMenu = document.getElementById('workspaceMenu');
+    if (!e.target.closest('.relative')) {
+        if (settingsMenu) closeSettings();
+        if (workspaceMenu) closeWorkspaceMenu();
+    }
 });
 
 // Initialize
 (async () => {
     if (await checkAuth()) {
+        await loadWorkspaces();
         await loadProjects();
     }
     render();
