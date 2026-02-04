@@ -46,6 +46,7 @@ async function login(e) {
         token = data.token;
         currentUser = data.user;
         localStorage.setItem('token', token);
+        await loadWorkspaces();
         await loadProjects();
         render();
     } catch (err) {
