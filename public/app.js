@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.9.1';
+const APP_VERSION = '2.9.2';
 
 // State Management
 let projects = [];
@@ -618,10 +618,9 @@ const ProjectCard = (project) => {
             </div>
             <div class="mb-4">
                 <div class="text-sm text-gray-600 mb-2 font-medium">Progress</div>
-                <div class="progress-bar">
-                    <div class="progress-fill ${getStatusColor(project.status)}" style="width: ${Math.max(project.progress, 8)}%">
-                        <span>${project.progress}%</span>
-                    </div>
+                <div class="progress-bar relative">
+                    <div class="progress-fill ${getStatusColor(project.status)}" style="width: ${project.progress}%"></div>
+                    <span class="absolute inset-0 flex items-center justify-center text-sm font-semibold ${project.progress > 50 ? 'text-white' : 'text-gray-700'}">${project.progress}%</span>
                 </div>
             </div>
             ${project.tasks && project.tasks.length > 0 ? `
@@ -717,13 +716,9 @@ const OverviewPage = () => {
                             <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
                             <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <div class="progress-bar h-6 flex-1">
-                                        <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${Math.max(p.progress, 5)}%">
-                                            ${p.progress >= 15 ? `<span>${p.progress}%</span>` : ''}
-                                        </div>
-                                    </div>
-                                    ${p.progress < 15 ? `<span class="text-xs font-medium text-gray-600 w-8">${p.progress}%</span>` : ''}
+                                <div class="progress-bar h-6 relative">
+                                    <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${p.progress}%"></div>
+                                    <span class="absolute inset-0 flex items-center justify-center text-xs font-semibold ${p.progress > 50 ? 'text-white' : 'text-gray-700'}">${p.progress}%</span>
                                 </div>
                             </td>
                             <td class="px-4 py-3">
@@ -852,13 +847,9 @@ const EditPage = () => {
                             <td class="px-4 py-3 text-sm text-gray-700">${p.owner}</td>
                             <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <div class="progress-bar h-5 flex-1">
-                                        <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${Math.max(p.progress, 5)}%">
-                                            ${p.progress >= 15 ? `<span class="text-xs">${p.progress}%</span>` : ''}
-                                        </div>
-                                    </div>
-                                    ${p.progress < 15 ? `<span class="text-xs font-medium text-gray-600 w-8">${p.progress}%</span>` : ''}
+                                <div class="progress-bar h-5 relative">
+                                    <div class="progress-fill ${getStatusColor(p.status)}" style="width: ${p.progress}%"></div>
+                                    <span class="absolute inset-0 flex items-center justify-center text-xs font-semibold ${p.progress > 50 ? 'text-white' : 'text-gray-700'}">${p.progress}%</span>
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${formatDate(p.startDate)} - ${formatDate(p.endDate)}</td>
@@ -1642,6 +1633,14 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.9.2 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Fixed progress bar text display</li>
+                                    <li>Percentage always centered inside bar regardless of fill level</li>
+                                    <li>Text color adapts based on fill (white on dark, dark on light)</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.9.1 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
