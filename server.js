@@ -144,6 +144,28 @@ try {
   // Table/indexes might already exist
 }
 
+// Create project_templates table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      tasks TEXT DEFAULT '[]',
+      userId INTEGER,
+      isGlobal INTEGER DEFAULT 0,
+      createdBy INTEGER NOT NULL,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userId) REFERENCES users(id),
+      FOREIGN KEY (createdBy) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_templates_userId ON project_templates(userId);
+    CREATE INDEX IF NOT EXISTS idx_templates_global ON project_templates(isGlobal);
+  `);
+} catch (e) {
+  // Table/indexes might already exist
+}
+
 // Create default admin user if not exists
 const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
 if (!adminExists) {
@@ -765,6 +787,144 @@ app.get('/api/workspaces/linkable', authenticate, (req, res) => {
   }
 
   res.json(linkable);
+});
+
+// Template routes
+
+// Get templates (user's own + global templates)
+app.get('/api/templates', authenticate, (req, res) => {
+  // Get user's own templates
+  const userTemplates = db.prepare(`
+    SELECT t.*, u.username as createdByUsername
+    FROM project_templates t
+    JOIN users u ON t.createdBy = u.id
+    WHERE t.userId = ?
+    ORDER BY t.name ASC
+  `).all(req.user.id);
+
+  // Get global templates
+  const globalTemplates = db.prepare(`
+    SELECT t.*, u.username as createdByUsername
+    FROM project_templates t
+    JOIN users u ON t.createdBy = u.id
+    WHERE t.isGlobal = 1
+    ORDER BY t.name ASC
+  `).all();
+
+  // Parse tasks JSON
+  const templates = [
+    ...userTemplates.map(t => ({ ...t, tasks: JSON.parse(t.tasks || '[]'), isOwner: true })),
+    ...globalTemplates.map(t => ({ ...t, tasks: JSON.parse(t.tasks || '[]'), isOwner: t.createdBy === req.user.id }))
+  ];
+
+  res.json(templates);
+});
+
+// Create a new template
+app.post('/api/templates', authenticate, (req, res) => {
+  const { name, description, tasks, isGlobal } = req.body;
+  if (!name) return res.status(400).json({ error: 'Template name required' });
+
+  // Only admins can create global templates
+  if (isGlobal && !req.user.isAdmin) {
+    return res.status(403).json({ error: 'Only admins can create global templates' });
+  }
+
+  const result = db.prepare(`
+    INSERT INTO project_templates (name, description, tasks, userId, isGlobal, createdBy)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    name,
+    description || '',
+    JSON.stringify(tasks || []),
+    isGlobal ? null : req.user.id,
+    isGlobal ? 1 : 0,
+    req.user.id
+  );
+
+  res.json({ id: result.lastInsertRowid, success: true });
+});
+
+// Create template from existing project
+app.post('/api/templates/from-project/:projectId', authenticate, (req, res) => {
+  const { name, isGlobal } = req.body;
+  if (!name) return res.status(400).json({ error: 'Template name required' });
+
+  // Only admins can create global templates
+  if (isGlobal && !req.user.isAdmin) {
+    return res.status(403).json({ error: 'Only admins can create global templates' });
+  }
+
+  // Get the project
+  const project = db.prepare('SELECT * FROM projects WHERE odid = ?').get(req.params.projectId);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  // Check permission
+  const permission = getWorkspacePermission(project.workspaceId, req.user.id);
+  if (!permission) return res.status(403).json({ error: 'Access denied' });
+
+  const tasks = JSON.parse(project.tasks || '[]');
+  // Reset completed status for template tasks
+  const templateTasks = tasks.map(t => ({ name: t.name, completed: false }));
+
+  const result = db.prepare(`
+    INSERT INTO project_templates (name, description, tasks, userId, isGlobal, createdBy)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    name,
+    `Created from project: ${project.name}`,
+    JSON.stringify(templateTasks),
+    isGlobal ? null : req.user.id,
+    isGlobal ? 1 : 0,
+    req.user.id
+  );
+
+  res.json({ id: result.lastInsertRowid, success: true });
+});
+
+// Update a template
+app.put('/api/templates/:id', authenticate, (req, res) => {
+  const template = db.prepare('SELECT * FROM project_templates WHERE id = ?').get(req.params.id);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  // Check ownership (user owns it or admin for global)
+  const canEdit = template.userId === req.user.id || (template.isGlobal && req.user.isAdmin);
+  if (!canEdit) return res.status(403).json({ error: 'Access denied' });
+
+  const { name, description, tasks, isGlobal } = req.body;
+
+  // Only admins can toggle global status
+  if (isGlobal !== undefined && isGlobal !== !!template.isGlobal && !req.user.isAdmin) {
+    return res.status(403).json({ error: 'Only admins can change global status' });
+  }
+
+  db.prepare(`
+    UPDATE project_templates
+    SET name = ?, description = ?, tasks = ?, isGlobal = ?, userId = ?
+    WHERE id = ?
+  `).run(
+    name || template.name,
+    description !== undefined ? description : template.description,
+    tasks ? JSON.stringify(tasks) : template.tasks,
+    isGlobal ? 1 : 0,
+    isGlobal ? null : (template.userId || req.user.id),
+    req.params.id
+  );
+
+  res.json({ success: true });
+});
+
+// Delete a template
+app.delete('/api/templates/:id', authenticate, (req, res) => {
+  const template = db.prepare('SELECT * FROM project_templates WHERE id = ?').get(req.params.id);
+  if (!template) return res.status(404).json({ error: 'Template not found' });
+
+  // Check ownership (user owns it or admin for global)
+  const canDelete = template.userId === req.user.id || (template.isGlobal && req.user.isAdmin);
+  if (!canDelete) return res.status(403).json({ error: 'Access denied' });
+
+  db.prepare('DELETE FROM project_templates WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
 });
 
 // Change own password

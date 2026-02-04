@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.10.0';
+const APP_VERSION = '2.11.0';
 
 // State Management
 let projects = [];
@@ -12,6 +12,7 @@ let darkMode = localStorage.getItem('darkMode') === 'true';
 let simpleView = localStorage.getItem('simpleView') === 'true';
 let demoMode = false;
 let allUsers = [];  // For share dropdown
+let templates = []; // For project templates
 
 // Apply dark mode on load
 if (darkMode) document.body.classList.add('dark');
@@ -49,6 +50,7 @@ async function login(e) {
         localStorage.setItem('token', token);
         await loadWorkspaces();
         await loadProjects();
+        await loadTemplates();
         render();
     } catch (err) {
         errorEl.textContent = err.message;
@@ -441,6 +443,365 @@ async function handleUnlinkProject(projectOdid, workspaceId) {
     }
 }
 
+// Template Functions
+async function loadTemplates() {
+    try {
+        templates = await api('/templates');
+    } catch (err) {
+        console.error('Failed to load templates:', err);
+        templates = [];
+    }
+}
+
+async function createTemplate(name, description, tasks, isGlobal = false) {
+    try {
+        await api('/templates', {
+            method: 'POST',
+            body: JSON.stringify({ name, description, tasks, isGlobal })
+        });
+        await loadTemplates();
+        return true;
+    } catch (err) {
+        alert('Error: ' + err.message);
+        return false;
+    }
+}
+
+async function createTemplateFromProject(projectOdid, name, isGlobal = false) {
+    try {
+        await api(`/templates/from-project/${projectOdid}`, {
+            method: 'POST',
+            body: JSON.stringify({ name, isGlobal })
+        });
+        await loadTemplates();
+        return true;
+    } catch (err) {
+        alert('Error: ' + err.message);
+        return false;
+    }
+}
+
+async function deleteTemplate(templateId) {
+    try {
+        await api(`/templates/${templateId}`, { method: 'DELETE' });
+        await loadTemplates();
+        return true;
+    } catch (err) {
+        alert('Error: ' + err.message);
+        return false;
+    }
+}
+
+function applyTemplate(templateId) {
+    const template = templates.find(t => t.id === parseInt(templateId));
+    if (!template) return;
+
+    // Apply template tasks to the form
+    const tasksList = document.getElementById('tasksList');
+    if (tasksList) {
+        // Clear existing tasks
+        tasksList.innerHTML = '';
+        // Add template tasks
+        template.tasks.forEach(task => {
+            tasksList.insertAdjacentHTML('beforeend', `
+                <div class="flex gap-2 items-center task-row">
+                    <input type="checkbox" class="task-completed rounded">
+                    <input type="text" value="${task.name}" class="task-name flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 px-2">×</button>
+                </div>
+            `);
+        });
+    }
+}
+
+async function showSaveAsTemplateModal(projectOdid) {
+    const project = projects.find(p => p.odid === projectOdid);
+    if (!project) return;
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold">Save as Template</h3>
+                    <p class="text-sm text-gray-500 mt-1">Create a reusable template from "${project.name}"</p>
+                </div>
+                <form onsubmit="handleSaveAsTemplate(event, '${projectOdid}')" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
+                        <input type="text" id="templateName" required placeholder="e.g., Standard Integration" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <div class="text-sm font-medium text-gray-700 mb-2">Tasks to include (${project.tasks?.length || 0})</div>
+                        <ul class="text-sm text-gray-600 space-y-1 max-h-32 overflow-y-auto">
+                            ${(project.tasks || []).map(t => `<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>${t.name}</li>`).join('')}
+                            ${(!project.tasks || project.tasks.length === 0) ? '<li class="text-gray-400 italic">No tasks</li>' : ''}
+                        </ul>
+                    </div>
+                    ${currentUser?.isAdmin ? `
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="templateGlobal" class="rounded">
+                            <label for="templateGlobal" class="text-sm text-gray-700">Make available to all users (Global)</label>
+                        </div>
+                    ` : ''}
+                    <div class="flex justify-end gap-3 pt-4 border-t">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Template</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `);
+}
+
+async function handleSaveAsTemplate(e, projectOdid) {
+    e.preventDefault();
+    const name = document.getElementById('templateName').value;
+    const isGlobal = document.getElementById('templateGlobal')?.checked || false;
+
+    const success = await createTemplateFromProject(projectOdid, name, isGlobal);
+    if (success) {
+        closeModal();
+        alert('Template saved successfully!');
+    }
+}
+
+async function showManageTemplatesModal() {
+    closeSettings();
+    await loadTemplates();
+
+    const userTemplates = templates.filter(t => !t.isGlobal);
+    const globalTemplates = templates.filter(t => t.isGlobal);
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
+                <div class="p-6 border-b border-gray-200 flex-shrink-0">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">Manage Templates</h3>
+                        <button onclick="showCreateTemplateModal()" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ New Template</button>
+                    </div>
+                </div>
+                <div class="p-6 overflow-y-auto flex-1">
+                    ${userTemplates.length > 0 ? `
+                        <div class="mb-4">
+                            <div class="text-sm font-medium text-gray-500 mb-2">MY TEMPLATES</div>
+                            <div class="space-y-2">
+                                ${userTemplates.map(t => `
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                        <div>
+                                            <div class="font-medium text-gray-900">${t.name}</div>
+                                            <div class="text-xs text-gray-500">${t.tasks.length} tasks</div>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button onclick="showEditTemplateModal(${t.id})" class="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
+                                            <button onclick="handleDeleteTemplate(${t.id})" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${globalTemplates.length > 0 ? `
+                        <div>
+                            <div class="text-sm font-medium text-gray-500 mb-2">GLOBAL TEMPLATES</div>
+                            <div class="space-y-2">
+                                ${globalTemplates.map(t => `
+                                    <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
+                                        <div>
+                                            <div class="font-medium text-gray-900 flex items-center gap-2">
+                                                ${t.name}
+                                                <span class="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded">Global</span>
+                                            </div>
+                                            <div class="text-xs text-gray-500">${t.tasks.length} tasks • by ${t.createdByUsername}</div>
+                                        </div>
+                                        ${t.isOwner || currentUser?.isAdmin ? `
+                                            <div class="flex gap-2">
+                                                <button onclick="showEditTemplateModal(${t.id})" class="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
+                                                <button onclick="handleDeleteTemplate(${t.id})" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${templates.length === 0 ? `
+                        <div class="text-center py-8 text-gray-500">
+                            <p>No templates yet.</p>
+                            <p class="text-sm mt-1">Create templates to quickly add tasks to new projects.</p>
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="p-4 border-t flex justify-end flex-shrink-0">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Done</button>
+                </div>
+            </div>
+        </div>
+    `);
+}
+
+async function showCreateTemplateModal() {
+    closeModal();
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col">
+                <div class="p-6 border-b border-gray-200 flex-shrink-0">
+                    <h3 class="text-lg font-semibold">Create Template</h3>
+                </div>
+                <form onsubmit="handleCreateTemplate(event)" class="p-6 space-y-4 overflow-y-auto flex-1">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
+                        <input type="text" id="newTemplateName" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <input type="text" id="newTemplateDesc" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-medium text-gray-700">Tasks</label>
+                            <button type="button" onclick="addTemplateTaskField()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Task</button>
+                        </div>
+                        <div id="templateTasksList" class="space-y-2">
+                        </div>
+                    </div>
+                    ${currentUser?.isAdmin ? `
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="newTemplateGlobal" class="rounded">
+                            <label for="newTemplateGlobal" class="text-sm text-gray-700">Make available to all users (Global)</label>
+                        </div>
+                    ` : ''}
+                    <div class="flex justify-end gap-3 pt-4 border-t">
+                        <button type="button" onclick="closeModal(); showManageTemplatesModal();" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Template</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `);
+}
+
+function addTemplateTaskField() {
+    document.getElementById('templateTasksList').insertAdjacentHTML('beforeend', `
+        <div class="flex gap-2 items-center template-task-row">
+            <input type="text" class="template-task-name flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Task name">
+            <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 px-2">×</button>
+        </div>
+    `);
+}
+
+async function handleCreateTemplate(e) {
+    e.preventDefault();
+    const name = document.getElementById('newTemplateName').value;
+    const description = document.getElementById('newTemplateDesc').value;
+    const isGlobal = document.getElementById('newTemplateGlobal')?.checked || false;
+
+    const tasks = Array.from(document.querySelectorAll('.template-task-row')).map(row => ({
+        name: row.querySelector('.template-task-name').value,
+        completed: false
+    })).filter(t => t.name.trim());
+
+    const success = await createTemplate(name, description, tasks, isGlobal);
+    if (success) {
+        closeModal();
+        showManageTemplatesModal();
+    }
+}
+
+async function showEditTemplateModal(templateId) {
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+
+    closeModal();
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col">
+                <div class="p-6 border-b border-gray-200 flex-shrink-0">
+                    <h3 class="text-lg font-semibold">Edit Template</h3>
+                </div>
+                <form onsubmit="handleUpdateTemplate(event, ${templateId})" class="p-6 space-y-4 overflow-y-auto flex-1">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
+                        <input type="text" id="editTemplateName" value="${template.name}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <input type="text" id="editTemplateDesc" value="${template.description || ''}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-medium text-gray-700">Tasks</label>
+                            <button type="button" onclick="addEditTemplateTaskField()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Task</button>
+                        </div>
+                        <div id="editTemplateTasksList" class="space-y-2">
+                            ${template.tasks.map(t => `
+                                <div class="flex gap-2 items-center edit-template-task-row">
+                                    <input type="text" value="${t.name}" class="edit-template-task-name flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 px-2">×</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ${currentUser?.isAdmin ? `
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="editTemplateGlobal" ${template.isGlobal ? 'checked' : ''} class="rounded">
+                            <label for="editTemplateGlobal" class="text-sm text-gray-700">Make available to all users (Global)</label>
+                        </div>
+                    ` : ''}
+                    <div class="flex justify-end gap-3 pt-4 border-t">
+                        <button type="button" onclick="closeModal(); showManageTemplatesModal();" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `);
+}
+
+function addEditTemplateTaskField() {
+    document.getElementById('editTemplateTasksList').insertAdjacentHTML('beforeend', `
+        <div class="flex gap-2 items-center edit-template-task-row">
+            <input type="text" class="edit-template-task-name flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Task name">
+            <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 px-2">×</button>
+        </div>
+    `);
+}
+
+async function handleUpdateTemplate(e, templateId) {
+    e.preventDefault();
+    const name = document.getElementById('editTemplateName').value;
+    const description = document.getElementById('editTemplateDesc').value;
+    const isGlobal = document.getElementById('editTemplateGlobal')?.checked || false;
+
+    const tasks = Array.from(document.querySelectorAll('.edit-template-task-row')).map(row => ({
+        name: row.querySelector('.edit-template-task-name').value,
+        completed: false
+    })).filter(t => t.name.trim());
+
+    try {
+        await api(`/templates/${templateId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ name, description, tasks, isGlobal })
+        });
+        await loadTemplates();
+        closeModal();
+        showManageTemplatesModal();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function handleDeleteTemplate(templateId) {
+    if (!confirm('Delete this template?')) return;
+    const success = await deleteTemplate(templateId);
+    if (success) {
+        closeModal();
+        showManageTemplatesModal();
+    }
+}
+
 async function showAuditModal(projectOdid) {
     const project = projects.find(p => p.odid === projectOdid);
     const projectName = project?.name || 'Unknown Project';
@@ -705,6 +1066,10 @@ const Header = () => {
                             <button onclick="showInfo()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
                                 <span>ℹ️</span>
                                 <span>About</span>
+                            </button>
+                            <button onclick="showManageTemplatesModal()" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
+                                <span>📋</span>
+                                <span>Manage Templates</span>
                             </button>
                             <div class="border-t my-1"></div>
                             <button onclick="toggleDemoMode()" class="w-full flex items-center gap-3 px-3 py-2 text-sm ${demoMode ? 'text-amber-600 hover:bg-amber-50' : 'text-gray-400 hover:bg-gray-100'} rounded-lg">
@@ -1104,6 +1469,8 @@ const ProjectModal = (project = null) => {
     const isViewOnly = !canEdit && project;
     const disabled = isViewOnly ? 'disabled' : '';
     const disabledClass = isViewOnly ? 'bg-gray-100 cursor-not-allowed' : '';
+    const isNewProject = !project;
+    const hasTasks = project?.tasks?.length > 0;
 
     return `
     <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
@@ -1111,11 +1478,38 @@ const ProjectModal = (project = null) => {
             <div class="p-6 border-b border-gray-200">
                 <div class="flex items-center justify-between">
                     <h3 class="text-lg font-semibold">${isViewOnly ? 'View Project' : (project ? 'Edit Project' : 'New Project')}</h3>
-                    ${isViewOnly ? '<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">View Only</span>' : ''}
+                    <div class="flex items-center gap-2">
+                        ${!isViewOnly && hasTasks ? `
+                            <button type="button" onclick="closeModal(); showSaveAsTemplateModal('${project.odid}')" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+                                Save as Template
+                            </button>
+                        ` : ''}
+                        ${isViewOnly ? '<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">View Only</span>' : ''}
+                    </div>
                 </div>
             </div>
             <form onsubmit="${isViewOnly ? 'event.preventDefault(); closeModal();' : 'saveProject(event)'}" class="p-6 space-y-4">
                 <input type="hidden" id="projectId" value="${project?.odid || ''}">
+                ${isNewProject && templates.length > 0 ? `
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <label class="block text-sm font-medium text-blue-800 mb-2">Start from Template (Optional)</label>
+                        <select id="templateSelect" onchange="applyTemplate(this.value)" class="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500">
+                            <option value="">Select a template...</option>
+                            ${templates.filter(t => !t.isGlobal).length > 0 ? `
+                                <optgroup label="My Templates">
+                                    ${templates.filter(t => !t.isGlobal).map(t => `<option value="${t.id}">${t.name} (${t.tasks.length} tasks)</option>`).join('')}
+                                </optgroup>
+                            ` : ''}
+                            ${templates.filter(t => t.isGlobal).length > 0 ? `
+                                <optgroup label="Global Templates">
+                                    ${templates.filter(t => t.isGlobal).map(t => `<option value="${t.id}">${t.name} (${t.tasks.length} tasks)</option>`).join('')}
+                                </optgroup>
+                            ` : ''}
+                        </select>
+                        <p class="text-xs text-blue-600 mt-1">Selecting a template will populate the tasks below</p>
+                    </div>
+                ` : ''}
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Project Name ${isViewOnly ? '' : '*'}</label>
@@ -1817,6 +2211,16 @@ function showInfo() {
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
                             <div>
+                                <p class="font-medium text-gray-800">v2.11.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Project Templates - create reusable task lists</li>
+                                    <li>Template selector when creating new projects</li>
+                                    <li>Save existing projects as templates</li>
+                                    <li>User templates + admin global templates</li>
+                                    <li>Manage Templates from settings menu</li>
+                                </ul>
+                            </div>
+                            <div>
                                 <p class="font-medium text-gray-800">v2.10.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
                                     <li>Project Sync - link projects across workspaces</li>
@@ -2047,6 +2451,7 @@ document.addEventListener('click', (e) => {
     if (await checkAuth()) {
         await loadWorkspaces();
         await loadProjects();
+        await loadTemplates();
     }
     render();
 })();
