@@ -353,6 +353,13 @@ app.delete('/api/workspaces/:id/shares/:shareId', authenticate, (req, res) => {
   res.json({ success: true });
 });
 
+// Leave a shared workspace (remove yourself from share)
+app.delete('/api/workspaces/:id/leave', authenticate, (req, res) => {
+  const result = db.prepare('DELETE FROM workspace_shares WHERE workspaceId = ? AND userId = ?').run(req.params.id, req.user.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Share not found' });
+  res.json({ success: true });
+});
+
 // Project routes
 app.get('/api/projects', authenticate, (req, res) => {
   const workspaceId = req.query.workspaceId;

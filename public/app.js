@@ -170,6 +170,28 @@ async function removeWorkspaceShare(workspaceId, shareId) {
     }
 }
 
+async function leaveWorkspace(workspaceId) {
+    const workspace = workspaces.find(w => w.id === workspaceId);
+    if (!confirm(`Leave workspace "${workspace?.name}"? You will no longer have access to its projects.`)) return;
+
+    try {
+        await api(`/workspaces/${workspaceId}/leave`, { method: 'DELETE' });
+        await loadWorkspaces();
+        // Switch to first owned workspace if we left the current one
+        if (currentWorkspace?.id === workspaceId) {
+            const ownedWorkspace = workspaces.find(w => w.isOwner);
+            if (ownedWorkspace) {
+                currentWorkspace = ownedWorkspace;
+                localStorage.setItem('currentWorkspaceId', ownedWorkspace.id);
+            }
+        }
+        await loadProjects();
+        render();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
 // Utility Functions
 const formatDate = (date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const daysBetween = (d1, d2) => Math.ceil((new Date(d2) - new Date(d1)) / (1000 * 60 * 60 * 24));
@@ -323,6 +345,12 @@ const Header = () => {
                             <button onclick="showShareWorkspace(${currentWorkspace?.id})" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-purple-600 hover:bg-purple-50 rounded-lg">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                                 Share Workspace
+                            </button>
+                            ` : ''}
+                            ${currentWorkspace && !currentWorkspace.isOwner ? `
+                            <button onclick="leaveWorkspace(${currentWorkspace?.id})" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                                Leave Workspace
                             </button>
                             ` : ''}
                             ${ownedWorkspaces.length > 1 ? `
