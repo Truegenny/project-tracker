@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.5.0';
 
 // State Management
 let projects = [];
@@ -1101,6 +1101,15 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.5.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Workspaces now properly isolated per user</li>
+                                    <li>Fixed workspaces not loading on login</li>
+                                    <li>Compact header with more room for workspace names</li>
+                                    <li>Long workspace names now truncate properly</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.4.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
