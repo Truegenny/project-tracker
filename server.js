@@ -124,6 +124,14 @@ try {
   // Column already exists, ignore
 }
 
+// Migration: Add priority column if it doesn't exist
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN priority INTEGER DEFAULT 3");
+  console.log('Migration: Added priority column to projects table');
+} catch (e) {
+  // Column already exists, ignore
+}
+
 // Create project_links table for syncing projects across workspaces
 try {
   db.exec(`
@@ -600,10 +608,11 @@ app.post('/api/projects', authenticate, (req, res) => {
   }
 
   const odid = Date.now().toString(36) + Math.random().toString(36).substr(2);
+  const { priority } = req.body;
   const result = db.prepare(`
-    INSERT INTO projects (odid, userId, workspaceId, name, description, owner, team, startDate, endDate, status, progress, tasks, notes, completedDate, lastUpdatedBy)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(odid, projectUserId, workspaceId || null, name, description || '', owner, team || '', startDate, endDate, status || 'active', progress || 0, JSON.stringify(tasks || []), JSON.stringify(notes || []), completedDate || null, req.user.username);
+    INSERT INTO projects (odid, userId, workspaceId, name, description, owner, team, startDate, endDate, status, progress, tasks, notes, completedDate, lastUpdatedBy, priority)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(odid, projectUserId, workspaceId || null, name, description || '', owner, team || '', startDate, endDate, status || 'active', progress || 0, JSON.stringify(tasks || []), JSON.stringify(notes || []), completedDate || null, req.user.username, priority || 3);
 
   // Log audit trail for project creation
   logAudit(odid, req.user.id, req.user.username, 'CREATE', { name, owner, status: status || 'active' });
@@ -621,11 +630,11 @@ app.put('/api/projects/:id', authenticate, (req, res) => {
   if (!permission) return res.status(403).json({ error: 'Access denied' });
   if (permission === 'viewer') return res.status(403).json({ error: 'Viewers cannot edit projects' });
 
-  const { name, description, owner, team, startDate, endDate, status, progress, tasks, notes, completedDate } = req.body;
+  const { name, description, owner, team, startDate, endDate, status, progress, tasks, notes, completedDate, priority } = req.body;
   db.prepare(`
-    UPDATE projects SET name = ?, description = ?, owner = ?, team = ?, startDate = ?, endDate = ?, status = ?, progress = ?, tasks = ?, notes = ?, completedDate = ?, updatedAt = CURRENT_TIMESTAMP, lastUpdatedBy = ?
+    UPDATE projects SET name = ?, description = ?, owner = ?, team = ?, startDate = ?, endDate = ?, status = ?, progress = ?, tasks = ?, notes = ?, completedDate = ?, updatedAt = CURRENT_TIMESTAMP, lastUpdatedBy = ?, priority = ?
     WHERE odid = ?
-  `).run(name, description || '', owner, team || '', startDate, endDate, status, progress, JSON.stringify(tasks || []), JSON.stringify(notes || []), completedDate || null, req.user.username, req.params.id);
+  `).run(name, description || '', owner, team || '', startDate, endDate, status, progress, JSON.stringify(tasks || []), JSON.stringify(notes || []), completedDate || null, req.user.username, priority || 3, req.params.id);
 
   // Detect and log changes
   const newProjectData = { name, description: description || '', owner, team: team || '', startDate, endDate, status, progress, tasks, notes, completedDate };

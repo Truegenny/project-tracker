@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.13.0';
+const APP_VERSION = '2.14.0';
 
 // State Management
 let projects = [];
@@ -914,6 +914,8 @@ const sortProjects = (arr) => {
             case 'end-date': return new Date(a.endDate) - new Date(b.endDate);
             case 'end-date-desc': return new Date(b.endDate) - new Date(a.endDate);
             case 'updated': return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+            case 'priority': return (a.priority || 3) - (b.priority || 3);
+            case 'priority-desc': return (b.priority || 3) - (a.priority || 3);
             case 'status':
             default: return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
         }
@@ -1244,6 +1246,8 @@ const OverviewPage = () => {
             <option value="end-date" ${sortBy === 'end-date' ? 'selected' : ''}>Sort: Due Date (Soon)</option>
             <option value="end-date-desc" ${sortBy === 'end-date-desc' ? 'selected' : ''}>Sort: Due Date (Later)</option>
             <option value="updated" ${sortBy === 'updated' ? 'selected' : ''}>Sort: Recently Updated</option>
+            <option value="priority" ${sortBy === 'priority' ? 'selected' : ''}>Sort: Priority (High)</option>
+            <option value="priority-desc" ${sortBy === 'priority-desc' ? 'selected' : ''}>Sort: Priority (Low)</option>
         </select>
     `;
 
@@ -1409,6 +1413,8 @@ const EditPage = () => {
             <option value="end-date" ${sortBy === 'end-date' ? 'selected' : ''}>Sort: Due Date (Soon)</option>
             <option value="end-date-desc" ${sortBy === 'end-date-desc' ? 'selected' : ''}>Sort: Due Date (Later)</option>
             <option value="updated" ${sortBy === 'updated' ? 'selected' : ''}>Sort: Recently Updated</option>
+            <option value="priority" ${sortBy === 'priority' ? 'selected' : ''}>Sort: Priority (High)</option>
+            <option value="priority-desc" ${sortBy === 'priority-desc' ? 'selected' : ''}>Sort: Priority (Low)</option>
         </select>
     `;
 
@@ -1590,6 +1596,16 @@ const ProjectModal = (project = null) => {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Progress (%)</label>
                         <input type="number" id="projectProgress" min="0" max="100" value="${project?.progress || 0}" ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                        <select id="projectPriority" ${disabled} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 ${disabledClass}">
+                            <option value="1" ${(project?.priority || 3) === 1 ? 'selected' : ''}>1 - Critical</option>
+                            <option value="2" ${(project?.priority || 3) === 2 ? 'selected' : ''}>2 - High</option>
+                            <option value="3" ${(project?.priority || 3) === 3 ? 'selected' : ''}>3 - Medium</option>
+                            <option value="4" ${(project?.priority || 3) === 4 ? 'selected' : ''}>4 - Low</option>
+                            <option value="5" ${(project?.priority || 3) === 5 ? 'selected' : ''}>5 - Minimal</option>
+                        </select>
+                    </div>
                 </div>
                 ${!isViewOnly ? `
                 <div class="flex items-center gap-2 pt-2">
@@ -1717,6 +1733,7 @@ async function toggleDemoMode() {
                 endDate: new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'on-track',
                 progress: 45,
+                priority: 2,
                 tasks: [
                     { name: 'Assessment complete', completed: true },
                     { name: 'Network setup', completed: true },
@@ -1733,6 +1750,7 @@ async function toggleDemoMode() {
                 endDate: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'behind',
                 progress: 70,
+                priority: 1,
                 tasks: [
                     { name: 'API mapping', completed: true },
                     { name: 'Data sync setup', completed: true },
@@ -1748,6 +1766,7 @@ async function toggleDemoMode() {
                 endDate: new Date(today.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'active',
                 progress: 25,
+                priority: 1,
                 tasks: [
                     { name: 'Vulnerability scan', completed: true },
                     { name: 'Penetration testing', completed: false },
@@ -1763,6 +1782,7 @@ async function toggleDemoMode() {
                 endDate: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'on-track',
                 progress: 85,
+                priority: 3,
                 tasks: [
                     { name: 'Development', completed: true },
                     { name: 'QA testing', completed: true },
@@ -1779,6 +1799,7 @@ async function toggleDemoMode() {
                 endDate: new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'discovery',
                 progress: 0,
+                priority: 4,
                 tasks: [
                     { name: 'Requirements gathering', completed: false },
                     { name: 'Architecture design', completed: false },
@@ -2085,6 +2106,7 @@ async function saveProject(e) {
         endDate: document.getElementById('projectEnd').value,
         status: forceFinish ? 'complete' : document.getElementById('projectStatus').value,
         progress: forceFinish ? 100 : (parseInt(document.getElementById('projectProgress').value) || 0),
+        priority: parseInt(document.getElementById('projectPriority').value) || 3,
         completedDate: forceFinish ? new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString() : null,
         tasks,
         notes
@@ -2269,6 +2291,14 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.14.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Priority field for projects (1-5 scale)</li>
+                                    <li>Sort by Priority (High/Low) added</li>
+                                    <li>Demo data includes priority examples</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.13.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
