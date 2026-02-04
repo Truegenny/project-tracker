@@ -1,8 +1,6 @@
 services:
   project-tracker:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/truegenny/project-tracker:latest
     container_name: project-tracker-v2
     ports:
       - "8085:3000"
@@ -24,7 +22,7 @@ services:
 
     labels:
       - "com.project-tracker.description=Ntiva Integration Project Tracker"
-      - "com.project-tracker.version=2.0"
+      - "com.project-tracker.version=2.1"
 
     logging:
       driver: "json-file"
