@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.7.0';
 
 // State Management
 let projects = [];
@@ -224,7 +224,8 @@ const Header = () => `
                 <button onclick="switchView('finished')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'finished' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Finished</button>
                 <button onclick="switchView('edit')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'edit' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Edit Projects</button>
                 ${currentUser?.isAdmin ? `<button onclick="switchView('admin')" class="px-4 py-2 rounded-lg font-medium transition ${currentView === 'admin' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">Users</button>` : ''}
-                <button onclick="exportPDF()" class="px-4 py-2 rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition">Export PDF</button>
+                <button onclick="exportPDF()" class="px-4 py-2 rounded-lg font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition">PDF</button>
+                <button onclick="exportCSV()" class="px-4 py-2 rounded-lg font-medium bg-amber-600 text-white hover:bg-amber-700 transition">CSV</button>
                 <div class="relative">
                     <button onclick="toggleSettings()" class="px-3 py-2 rounded-lg font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -1177,6 +1178,14 @@ function showInfo() {
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
                             <div>
+                                <p class="font-medium text-gray-800">v2.7.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Added CSV export button</li>
+                                    <li>Exports all project data to spreadsheet format</li>
+                                    <li>Includes task counts and notes count</li>
+                                </ul>
+                            </div>
+                            <div>
                                 <p class="font-medium text-gray-800">v2.6.0 <span class="text-gray-400">- Feb 3, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
                                     <li>Added Notes feature to projects</li>
@@ -1286,6 +1295,48 @@ async function exportPDF() {
     }
     pdf.save(`project-overview-${new Date().toISOString().split('T')[0]}.pdf`);
     document.querySelectorAll('.dropdown-content').forEach(el => el.classList.remove('open'));
+}
+
+function exportCSV() {
+    if (projects.length === 0) {
+        alert('No projects to export');
+        return;
+    }
+
+    const escapeCSV = (str) => {
+        if (str === null || str === undefined) return '';
+        const s = String(str);
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+            return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+    };
+
+    const headers = ['Name', 'Description', 'Owner', 'Team', 'Start Date', 'End Date', 'Status', 'Progress', 'Tasks Completed', 'Total Tasks', 'Notes Count', 'Created At'];
+
+    const rows = projects.map(p => [
+        escapeCSV(p.name),
+        escapeCSV(p.description),
+        escapeCSV(p.owner),
+        escapeCSV(p.team),
+        escapeCSV(p.startDate),
+        escapeCSV(p.endDate),
+        escapeCSV(p.status),
+        p.progress + '%',
+        (p.tasks || []).filter(t => t.completed).length,
+        (p.tasks || []).length,
+        (p.notes || []).length,
+        escapeCSV(p.createdAt)
+    ]);
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `projects-${currentWorkspace?.name || 'all'}-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
 }
 
 document.addEventListener('click', (e) => {
