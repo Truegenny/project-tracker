@@ -97,6 +97,25 @@ try {
   // Column already exists, ignore
 }
 
+// Create project_audit table for audit trail
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      projectOdid TEXT NOT NULL,
+      userId INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      action TEXT NOT NULL,
+      changes TEXT,
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userId) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_audit_odid ON project_audit(projectOdid);
+  `);
+} catch (e) {
+  // Table/index might already exist
+}
+
 // Create default admin user if not exists
 const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
 if (!adminExists) {
@@ -145,6 +164,98 @@ function getWorkspacePermission(workspaceId, userId) {
   const share = db.prepare('SELECT permission FROM workspace_shares WHERE workspaceId = ? AND userId = ?')
     .get(workspaceId, userId);
   return share ? share.permission : null;
+}
+
+// Helper: Log audit trail entry
+function logAudit(projectOdid, userId, username, action, changes = null) {
+  try {
+    db.prepare(`
+      INSERT INTO project_audit (projectOdid, userId, username, action, changes)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(projectOdid, userId, username, action, changes ? JSON.stringify(changes) : null);
+  } catch (e) {
+    console.error('Failed to log audit:', e);
+  }
+}
+
+// Helper: Detect changes between old and new project data
+function detectChanges(oldProject, newProject) {
+  const changes = [];
+  const changedFields = {};
+
+  // Check status change
+  if (oldProject.status !== newProject.status) {
+    changes.push({
+      action: 'STATUS_CHANGE',
+      changes: { field: 'status', old: oldProject.status, new: newProject.status }
+    });
+  }
+
+  // Check progress change
+  if (oldProject.progress !== newProject.progress) {
+    changes.push({
+      action: 'PROGRESS_UPDATE',
+      changes: { field: 'progress', old: oldProject.progress, new: newProject.progress }
+    });
+  }
+
+  // Check timeline changes
+  if (oldProject.startDate !== newProject.startDate || oldProject.endDate !== newProject.endDate) {
+    changes.push({
+      action: 'TIMELINE_CHANGE',
+      changes: {
+        field: 'timeline',
+        old: { startDate: oldProject.startDate, endDate: oldProject.endDate },
+        new: { startDate: newProject.startDate, endDate: newProject.endDate }
+      }
+    });
+  }
+
+  // Check for new notes
+  const oldNotes = JSON.parse(oldProject.notes || '[]');
+  const newNotes = JSON.parse(typeof newProject.notes === 'string' ? newProject.notes : JSON.stringify(newProject.notes || []));
+  if (newNotes.length > oldNotes.length) {
+    changes.push({
+      action: 'NOTE_ADDED',
+      changes: { count: newNotes.length - oldNotes.length }
+    });
+  }
+
+  // Check for task changes
+  const oldTasks = JSON.parse(oldProject.tasks || '[]');
+  const newTasks = JSON.parse(typeof newProject.tasks === 'string' ? newProject.tasks : JSON.stringify(newProject.tasks || []));
+  if (JSON.stringify(oldTasks) !== JSON.stringify(newTasks)) {
+    changes.push({
+      action: 'TASK_CHANGE',
+      changes: { oldCount: oldTasks.length, newCount: newTasks.length }
+    });
+  }
+
+  // Check for reactivation (from complete/finished back to active)
+  if ((oldProject.status === 'complete' && oldProject.completedDate) &&
+      (newProject.status !== 'complete' || !newProject.completedDate)) {
+    changes.push({
+      action: 'REACTIVATE',
+      changes: { oldStatus: oldProject.status }
+    });
+  }
+
+  // Check other field updates (name, description, owner, team)
+  const fieldsToCheck = ['name', 'description', 'owner', 'team'];
+  for (const field of fieldsToCheck) {
+    if (oldProject[field] !== newProject[field]) {
+      changedFields[field] = { old: oldProject[field], new: newProject[field] };
+    }
+  }
+
+  if (Object.keys(changedFields).length > 0) {
+    changes.push({
+      action: 'UPDATE',
+      changes: changedFields
+    });
+  }
+
+  return changes;
 }
 
 // Auth routes
@@ -420,16 +531,19 @@ app.post('/api/projects', authenticate, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(odid, projectUserId, workspaceId || null, name, description || '', owner, team || '', startDate, endDate, status || 'active', progress || 0, JSON.stringify(tasks || []), JSON.stringify(notes || []), completedDate || null);
 
+  // Log audit trail for project creation
+  logAudit(odid, req.user.id, req.user.username, 'CREATE', { name, owner, status: status || 'active' });
+
   res.json({ id: odid, success: true });
 });
 
 app.put('/api/projects/:id', authenticate, (req, res) => {
-  // First find the project
-  const project = db.prepare('SELECT * FROM projects WHERE odid = ?').get(req.params.id);
-  if (!project) return res.status(404).json({ error: 'Project not found' });
+  // First find the project (store original for comparison)
+  const oldProject = db.prepare('SELECT * FROM projects WHERE odid = ?').get(req.params.id);
+  if (!oldProject) return res.status(404).json({ error: 'Project not found' });
 
   // Check permission
-  const permission = getWorkspacePermission(project.workspaceId, req.user.id);
+  const permission = getWorkspacePermission(oldProject.workspaceId, req.user.id);
   if (!permission) return res.status(403).json({ error: 'Access denied' });
   if (permission === 'viewer') return res.status(403).json({ error: 'Viewers cannot edit projects' });
 
@@ -438,6 +552,13 @@ app.put('/api/projects/:id', authenticate, (req, res) => {
     UPDATE projects SET name = ?, description = ?, owner = ?, team = ?, startDate = ?, endDate = ?, status = ?, progress = ?, tasks = ?, notes = ?, completedDate = ?, updatedAt = CURRENT_TIMESTAMP
     WHERE odid = ?
   `).run(name, description || '', owner, team || '', startDate, endDate, status, progress, JSON.stringify(tasks || []), JSON.stringify(notes || []), completedDate || null, req.params.id);
+
+  // Detect and log changes
+  const newProjectData = { name, description: description || '', owner, team: team || '', startDate, endDate, status, progress, tasks, notes, completedDate };
+  const changes = detectChanges(oldProject, newProjectData);
+  for (const change of changes) {
+    logAudit(req.params.id, req.user.id, req.user.username, change.action, change.changes);
+  }
 
   res.json({ success: true });
 });
@@ -452,8 +573,37 @@ app.delete('/api/projects/:id', authenticate, (req, res) => {
   if (!permission) return res.status(403).json({ error: 'Access denied' });
   if (permission === 'viewer') return res.status(403).json({ error: 'Viewers cannot delete projects' });
 
+  // Log audit trail before deletion
+  logAudit(req.params.id, req.user.id, req.user.username, 'DELETE', { name: project.name, owner: project.owner });
+
   db.prepare('DELETE FROM projects WHERE odid = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// Get project audit trail
+app.get('/api/projects/:id/audit', authenticate, (req, res) => {
+  // First find the project to check workspace permission
+  const project = db.prepare('SELECT * FROM projects WHERE odid = ?').get(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
+
+  // Check permission (all workspace users can view audit trail)
+  const permission = getWorkspacePermission(project.workspaceId, req.user.id);
+  if (!permission) return res.status(403).json({ error: 'Access denied' });
+
+  // Get audit trail entries
+  const auditEntries = db.prepare(`
+    SELECT * FROM project_audit
+    WHERE projectOdid = ?
+    ORDER BY timestamp DESC
+  `).all(req.params.id);
+
+  // Parse changes JSON
+  const entries = auditEntries.map(entry => ({
+    ...entry,
+    changes: entry.changes ? JSON.parse(entry.changes) : null
+  }));
+
+  res.json(entries);
 });
 
 // Change own password

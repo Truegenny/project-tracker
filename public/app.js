@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.8.1';
+const APP_VERSION = '2.9.0';
 
 // State Management
 let projects = [];
@@ -189,6 +189,142 @@ async function leaveWorkspace(workspaceId) {
         render();
     } catch (err) {
         alert('Error: ' + err.message);
+    }
+}
+
+// Audit Trail Functions
+async function loadProjectAudit(projectOdid) {
+    try {
+        return await api(`/projects/${projectOdid}/audit`);
+    } catch (err) {
+        console.error('Failed to load audit trail:', err);
+        return [];
+    }
+}
+
+function getActionColor(action) {
+    const colors = {
+        'CREATE': 'bg-green-100 text-green-800',
+        'UPDATE': 'bg-blue-100 text-blue-800',
+        'STATUS_CHANGE': 'bg-orange-100 text-orange-800',
+        'PROGRESS_UPDATE': 'bg-cyan-100 text-cyan-800',
+        'TIMELINE_CHANGE': 'bg-purple-100 text-purple-800',
+        'NOTE_ADDED': 'bg-indigo-100 text-indigo-800',
+        'TASK_CHANGE': 'bg-yellow-100 text-yellow-800',
+        'DELETE': 'bg-red-100 text-red-800',
+        'REACTIVATE': 'bg-emerald-100 text-emerald-800'
+    };
+    return colors[action] || 'bg-gray-100 text-gray-800';
+}
+
+function formatAuditEntry(entry) {
+    const date = new Date(entry.timestamp);
+    const formattedDate = date.toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true
+    });
+
+    let description = '';
+    const changes = entry.changes;
+
+    switch (entry.action) {
+        case 'CREATE':
+            description = 'created project';
+            break;
+        case 'UPDATE':
+            const fields = Object.keys(changes || {}).join(', ');
+            description = `updated ${fields}`;
+            break;
+        case 'STATUS_CHANGE':
+            description = `changed status: ${changes?.old} → ${changes?.new}`;
+            break;
+        case 'PROGRESS_UPDATE':
+            description = `updated progress: ${changes?.old}% → ${changes?.new}%`;
+            break;
+        case 'TIMELINE_CHANGE':
+            const oldStart = changes?.old?.startDate || 'N/A';
+            const oldEnd = changes?.old?.endDate || 'N/A';
+            const newStart = changes?.new?.startDate || 'N/A';
+            const newEnd = changes?.new?.endDate || 'N/A';
+            if (oldStart !== newStart && oldEnd !== newEnd) {
+                description = `changed timeline: ${oldStart} - ${oldEnd} → ${newStart} - ${newEnd}`;
+            } else if (oldStart !== newStart) {
+                description = `changed start date: ${oldStart} → ${newStart}`;
+            } else {
+                description = `changed end date: ${oldEnd} → ${newEnd}`;
+            }
+            break;
+        case 'NOTE_ADDED':
+            const count = changes?.count || 1;
+            description = count > 1 ? `added ${count} notes` : 'added note';
+            break;
+        case 'TASK_CHANGE':
+            description = 'modified tasks';
+            break;
+        case 'DELETE':
+            description = 'deleted project';
+            break;
+        case 'REACTIVATE':
+            description = 'reactivated project';
+            break;
+        default:
+            description = entry.action.toLowerCase().replace('_', ' ');
+    }
+
+    return `
+        <div class="border-b border-gray-100 last:border-0 py-3">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex-1">
+                    <div class="text-xs text-gray-400 mb-1">${formattedDate}</div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded-full text-xs font-medium ${getActionColor(entry.action)}">${entry.action.replace('_', ' ')}</span>
+                        <span class="text-sm text-gray-700"><strong>${entry.username}</strong> ${description}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function showAuditModal(projectOdid) {
+    const project = projects.find(p => p.odid === projectOdid);
+    const projectName = project?.name || 'Unknown Project';
+
+    // Show loading state
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target.id==='modal')closeModal()">
+            <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
+                <div class="p-6 border-b border-gray-200 flex-shrink-0">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <h3 class="text-lg font-semibold">Activity History: ${projectName}</h3>
+                    </div>
+                </div>
+                <div id="auditContent" class="p-6 overflow-y-auto flex-1">
+                    <div class="flex justify-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                </div>
+                <div class="p-4 border-t flex justify-end flex-shrink-0">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Close</button>
+                </div>
+            </div>
+        </div>
+    `);
+
+    // Load audit trail
+    const auditEntries = await loadProjectAudit(projectOdid);
+
+    const contentEl = document.getElementById('auditContent');
+    if (auditEntries.length === 0) {
+        contentEl.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <p>No activity history yet</p>
+            </div>
+        `;
+    } else {
+        contentEl.innerHTML = auditEntries.map(formatAuditEntry).join('');
     }
 }
 
@@ -446,7 +582,12 @@ const ProjectCard = (project) => {
                     <h3 class="text-xl font-semibold text-gray-900">${project.name}</h3>
                     <p class="text-gray-500 text-sm mt-1">${project.description || ''}</p>
                 </div>
-                <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBg(project.status)}">${project.status.replace('-', ' ').toUpperCase()}</span>
+                <div class="flex items-center gap-2">
+                    <button onclick="showAuditModal('${pid}')" class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition" title="View History">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </button>
+                    <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBg(project.status)}">${project.status.replace('-', ' ').toUpperCase()}</span>
+                </div>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
                 <div><span class="text-gray-500">Owner:</span> <span class="font-medium">${project.owner}</span></div>
@@ -640,6 +781,9 @@ const FinishedPage = () => {
                             <td class="px-4 py-3 text-sm text-gray-600">${formatDate(p.completedDate)}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">${daysBetween(p.startDate, p.endDate)} days</td>
                             <td class="px-4 py-3 text-right">
+                                <button onclick="showAuditModal('${p.odid}')" class="text-gray-400 hover:text-gray-600 text-sm font-medium mr-2" title="View History">
+                                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </button>
                                 ${canEdit ? `
                                     <button onclick="reactivateProject('${p.odid}')" class="text-emerald-600 hover:text-emerald-800 text-sm font-medium mr-2">Reactivate</button>
                                     <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</button>
@@ -700,6 +844,9 @@ const EditPage = () => {
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${formatDate(p.startDate)} - ${formatDate(p.endDate)}</td>
                             <td class="px-4 py-3 text-right">
+                                <button onclick="showAuditModal('${p.odid}')" class="text-gray-400 hover:text-gray-600 text-sm font-medium mr-2" title="View History">
+                                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </button>
                                 ${canEdit ? `
                                     <button onclick="openProjectModal('${p.odid}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium mr-2">Edit</button>
                                     <button onclick="deleteProject('${p.odid}')" class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
@@ -1476,6 +1623,15 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.9.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Audit Trail - track all project changes with timestamps</li>
+                                    <li>History button on project cards and edit list</li>
+                                    <li>View who made changes and when</li>
+                                    <li>Tracks: create, update, status, progress, timeline, notes, tasks, delete, reactivate</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.8.1 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
