@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.11.2';
+const APP_VERSION = '2.11.3';
 
 // State Management
 let projects = [];
@@ -1491,25 +1491,6 @@ const ProjectModal = (project = null) => {
             </div>
             <form onsubmit="${isViewOnly ? 'event.preventDefault(); closeModal();' : 'saveProject(event)'}" class="p-6 space-y-4">
                 <input type="hidden" id="projectId" value="${project?.odid || ''}">
-                ${isNewProject && templates.length > 0 ? `
-                    <div class="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                        <label class="block text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">Start from Template (Optional)</label>
-                        <select id="templateSelect" onchange="applyTemplate(this.value)" class="w-full px-3 py-2 border border-blue-200 dark:border-blue-700 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500">
-                            <option value="">Select a template...</option>
-                            ${templates.filter(t => !t.isGlobal).length > 0 ? `
-                                <optgroup label="My Templates">
-                                    ${templates.filter(t => !t.isGlobal).map(t => `<option value="${t.id}">${t.name} (${t.tasks.length} tasks)</option>`).join('')}
-                                </optgroup>
-                            ` : ''}
-                            ${templates.filter(t => t.isGlobal).length > 0 ? `
-                                <optgroup label="Global Templates">
-                                    ${templates.filter(t => t.isGlobal).map(t => `<option value="${t.id}">${t.name} (${t.tasks.length} tasks)</option>`).join('')}
-                                </optgroup>
-                            ` : ''}
-                        </select>
-                        <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">Selecting a template will populate the tasks below</p>
-                    </div>
-                ` : ''}
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Project Name ${isViewOnly ? '' : '*'}</label>
@@ -1558,6 +1539,25 @@ const ProjectModal = (project = null) => {
                 </div>
                 ` : ''}
                 <div class="border-t pt-4 mt-4">
+                    ${isNewProject && templates.length > 0 ? `
+                    <div class="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4">
+                        <label class="block text-sm font-medium text-blue-800 mb-2">Start from Template (Optional)</label>
+                        <select id="templateSelect" onchange="applyTemplate(this.value)" class="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500">
+                            <option value="">Select a template...</option>
+                            ${templates.filter(t => !t.isGlobal).length > 0 ? `
+                                <optgroup label="My Templates">
+                                    ${templates.filter(t => !t.isGlobal).map(t => `<option value="${t.id}">${t.name} (${t.tasks.length} tasks)</option>`).join('')}
+                                </optgroup>
+                            ` : ''}
+                            ${templates.filter(t => t.isGlobal).length > 0 ? `
+                                <optgroup label="Global Templates">
+                                    ${templates.filter(t => t.isGlobal).map(t => `<option value="${t.id}">${t.name} (${t.tasks.length} tasks)</option>`).join('')}
+                                </optgroup>
+                            ` : ''}
+                        </select>
+                        <p class="text-xs text-blue-600 mt-1">Selecting a template will populate the tasks below</p>
+                    </div>
+                    ` : ''}
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-sm font-medium text-gray-700">Sub-tasks</label>
                         ${!isViewOnly ? `<button type="button" onclick="addTaskField()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Task</button>` : ''}
@@ -2210,6 +2210,12 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.11.3 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Moved template selector next to tasks in new project modal</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.11.2 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
