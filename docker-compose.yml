@@ -9,6 +9,11 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET:-change-this-to-a-secure-random-string}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      # Microsoft 365 SSO (optional - leave empty to disable)
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET:-}
+      - MICROSOFT_TENANT_ID=${MICROSOFT_TENANT_ID:-}
+      - APP_URL=${APP_URL:-http://localhost:3000}
 
     volumes:
       - project-data:/data

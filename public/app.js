@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.14.1';
+const APP_VERSION = '2.15.0';
 
 // State Management
 let projects = [];
@@ -14,6 +14,7 @@ let sortBy = localStorage.getItem('sortBy') || 'status';
 let demoMode = false;
 let allUsers = [];  // For share dropdown
 let templates = []; // For project templates
+let microsoftSSOEnabled = false; // Microsoft SSO availability
 
 // Apply dark mode on load
 if (darkMode) document.body.classList.add('dark');
@@ -80,6 +81,58 @@ async function checkAuth() {
         logout();
         return false;
     }
+}
+
+// Check Microsoft SSO availability
+async function checkMicrosoftSSO() {
+    try {
+        const res = await fetch('/api/auth/microsoft/status');
+        const data = await res.json();
+        microsoftSSOEnabled = data.enabled;
+    } catch {
+        microsoftSSOEnabled = false;
+    }
+}
+
+// Handle OAuth callback token from URL
+function handleOAuthCallback() {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    const error = params.get('error');
+
+    // Clear URL parameters
+    if (urlToken || error) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (urlToken) {
+        token = urlToken;
+        localStorage.setItem('token', token);
+        return true;
+    }
+
+    if (error) {
+        // Show error message on login page
+        setTimeout(() => {
+            const errorEl = document.getElementById('loginError');
+            if (errorEl) {
+                const messages = {
+                    'account_not_found': 'No account found with this email. Please contact your administrator.',
+                    'oauth_failed': 'Microsoft sign-in failed. Please try again.',
+                    'no_email': 'Could not retrieve email from Microsoft. Please try again.'
+                };
+                errorEl.textContent = messages[error] || 'Sign-in failed. Please try again.';
+                errorEl.classList.remove('hidden');
+            }
+        }, 100);
+    }
+
+    return false;
+}
+
+// Initiate Microsoft sign-in
+function loginWithMicrosoft() {
+    window.location.href = '/api/auth/microsoft';
 }
 
 async function loadWorkspaces() {
@@ -962,6 +1015,27 @@ const LoginPage = () => `
                 </div>
                 <button type="submit" class="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">Sign In</button>
             </form>
+            ${microsoftSSOEnabled ? `
+            <div class="mt-6">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-white text-gray-500">or</span>
+                    </div>
+                </div>
+                <button onclick="loginWithMicrosoft()" type="button" class="mt-4 w-full py-2 px-4 border border-gray-300 rounded-lg font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center justify-center gap-2 microsoft-btn">
+                    <svg class="w-5 h-5" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                    </svg>
+                    Sign in with Microsoft
+                </button>
+            </div>
+            ` : ''}
         </div>
     </div>
 `;
@@ -1518,13 +1592,14 @@ const AdminPage = () => `
                 <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Username</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Email (SSO)</th>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Role</th>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Created</th>
                         <th class="px-4 py-3 text-right text-sm font-medium text-gray-700">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="usersList" class="divide-y divide-gray-200">
-                    <tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -1536,7 +1611,20 @@ async function loadUsers() {
         const users = await api('/admin/users');
         document.getElementById('usersList').innerHTML = users.map(u => `
             <tr class="hover:bg-gray-50">
-                <td class="px-4 py-3 font-medium text-gray-900">${u.username}</td>
+                <td class="px-4 py-3">
+                    <div class="font-medium text-gray-900">${u.username}</div>
+                    ${u.auth_provider === 'microsoft' ? '<span class="text-xs text-blue-600">Microsoft SSO</span>' : ''}
+                </td>
+                <td class="px-4 py-3">
+                    ${u.email ? `
+                        <span class="text-sm text-gray-700">${u.email}</span>
+                        <button onclick="editUserEmail(${u.id}, '${u.email || ''}')" class="ml-1 text-gray-400 hover:text-gray-600">
+                            <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                    ` : `
+                        <button onclick="editUserEmail(${u.id}, '')" class="text-sm text-gray-400 hover:text-blue-600">+ Add email</button>
+                    `}
+                </td>
                 <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${u.isAdmin ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}">${u.isAdmin ? 'Admin' : 'User'}</span></td>
                 <td class="px-4 py-3 text-sm text-gray-500">${formatDate(u.createdAt)}</td>
                 <td class="px-4 py-3 text-right">
@@ -1546,7 +1634,7 @@ async function loadUsers() {
             </tr>
         `).join('');
     } catch (err) {
-        document.getElementById('usersList').innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-red-500">${err.message}</td></tr>`;
+        document.getElementById('usersList').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">${err.message}</td></tr>`;
     }
 }
 
@@ -2193,6 +2281,11 @@ function showAddUser() {
                         <input type="text" id="newUsername" required class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     </div>
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email (for Microsoft SSO)</label>
+                        <input type="email" id="newEmail" placeholder="user@company.com" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <p class="mt-1 text-xs text-gray-500">User can sign in with Microsoft using this email</p>
+                    </div>
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Password (min 6 chars)</label>
                         <input type="password" id="newPassword" required minlength="6" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     </div>
@@ -2218,10 +2311,25 @@ async function createUser(e) {
             body: JSON.stringify({
                 username: document.getElementById('newUsername').value,
                 password: document.getElementById('newPassword').value,
+                email: document.getElementById('newEmail').value || null,
                 isAdmin: document.getElementById('newIsAdmin').checked
             })
         });
         closeModal();
+        loadUsers();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function editUserEmail(userId, currentEmail) {
+    const newEmail = prompt('Enter email address for Microsoft SSO:', currentEmail);
+    if (newEmail === null) return; // Cancelled
+    try {
+        await api(`/admin/users/${userId}/email`, {
+            method: 'PUT',
+            body: JSON.stringify({ email: newEmail || null })
+        });
         loadUsers();
     } catch (err) {
         alert('Error: ' + err.message);
@@ -2788,6 +2896,12 @@ document.addEventListener('click', (e) => {
 
 // Initialize
 (async () => {
+    // Check Microsoft SSO availability
+    await checkMicrosoftSSO();
+
+    // Handle OAuth callback (token in URL)
+    handleOAuthCallback();
+
     if (await checkAuth()) {
         await loadWorkspaces();
         await loadProjects();

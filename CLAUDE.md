@@ -1,6 +1,6 @@
 # Project Tracker - Developer Documentation
 
-**Current Version: 2.14.1** | Last Updated: February 6, 2026
+**Current Version: 2.15.0** | Last Updated: February 6, 2026
 
 ## Project Overview
 
@@ -13,6 +13,7 @@
 - **Frontend**: Vanilla JavaScript (no frameworks)
 - **Styling**: Tailwind CSS 3.x (CDN)
 - **Security**: bcryptjs (password hashing), jsonwebtoken (JWT auth), helmet.js (security headers)
+- **Authentication**: passport, passport-azure-ad (Microsoft 365 SSO), express-session
 - **Rate Limiting**: express-rate-limit
 - **Deployment**: Docker & Docker Compose, optimized for Portainer GitOps
 - **Frontend Export**: html2canvas + jspdf for PDF generation
@@ -21,7 +22,7 @@
 ## Key Features
 
 ### Core Features
-1. **User Authentication** - Secure JWT-based login with rate limiting (10 attempts per 15 min)
+1. **User Authentication** - Secure JWT-based login with rate limiting (10 attempts per 15 min) + Microsoft 365 SSO
 2. **Workspaces** - Separate project collections per user with isolation between users
 3. **Workspace Sharing** - Share workspaces with other users as Viewer or Editor
 4. **Project Management** - Full CRUD operations for projects with team assignments, descriptions, custom statuses
@@ -84,6 +85,9 @@ CREATE TABLE users (
   username TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
   isAdmin INTEGER DEFAULT 0,
+  email TEXT,                              -- For Microsoft SSO linking
+  microsoft_id TEXT,                       -- Azure AD object ID
+  auth_provider TEXT DEFAULT 'local',      -- 'local' or 'microsoft'
   createdAt TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -295,6 +299,10 @@ When adding new UI elements, add corresponding `.dark` CSS rules in index.html.
 | `JWT_SECRET` | `change-this-secret-in-production` | JWT signing |
 | `ADMIN_PASSWORD` | `admin123` | Initial admin password |
 | `PORT` | `3000` | Server port |
+| `MICROSOFT_CLIENT_ID` | (none) | Azure AD Application ID (SSO) |
+| `MICROSOFT_CLIENT_SECRET` | (none) | Azure AD Client Secret (SSO) |
+| `MICROSOFT_TENANT_ID` | (none) | Azure AD Tenant ID (SSO) |
+| `APP_URL` | `http://localhost:3000` | Public URL for OAuth callbacks |
 
 ### Private Repository Setup
 To use with private GitHub repo:
@@ -303,6 +311,13 @@ To use with private GitHub repo:
 3. Portainer will authenticate when pulling images
 
 ## Version History (Recent)
+
+### v2.15.0 (Feb 6, 2026)
+- Microsoft 365 SSO support (optional)
+- Single tenant Azure AD integration
+- Users can sign in with Microsoft after admin pre-registration
+- Email field added to user management for SSO linking
+- Admin panel shows auth provider (Local/Microsoft SSO)
 
 ### v2.14.1 (Feb 6, 2026)
 - Priority badges visible on project cards and tables

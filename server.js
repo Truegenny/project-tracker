@@ -6,11 +6,21 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const session = require('express-session');
+const passport = require('passport');
+const { OIDCStrategy } = require('passport-azure-ad');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+// Microsoft OAuth configuration
+const MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID;
+const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
+const MICROSOFT_TENANT_ID = process.env.MICROSOFT_TENANT_ID;
+const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+const MICROSOFT_SSO_ENABLED = !!(MICROSOFT_CLIENT_ID && MICROSOFT_CLIENT_SECRET && MICROSOFT_TENANT_ID);
 
 // Database setup
 const db = new Database('/data/projects.db');
@@ -174,6 +184,30 @@ try {
   // Table/indexes might already exist
 }
 
+// Migration: Add email column for Microsoft SSO
+try {
+  db.exec("ALTER TABLE users ADD COLUMN email TEXT");
+  console.log('Migration: Added email column to users table');
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Migration: Add microsoft_id column for Microsoft SSO
+try {
+  db.exec("ALTER TABLE users ADD COLUMN microsoft_id TEXT");
+  console.log('Migration: Added microsoft_id column to users table');
+} catch (e) {
+  // Column already exists, ignore
+}
+
+// Migration: Add auth_provider column for Microsoft SSO
+try {
+  db.exec("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'");
+  console.log('Migration: Added auth_provider column to users table');
+} catch (e) {
+  // Column already exists, ignore
+}
+
 // Create default admin user if not exists
 const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
 if (!adminExists) {
@@ -187,6 +221,44 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Session middleware (required for OAuth state)
+app.use(session({
+  secret: JWT_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, maxAge: 10 * 60 * 1000 } // 10 min for OAuth flow only
+}));
+
+// Initialize passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization (minimal - we use JWT after OAuth)
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+
+// Configure Microsoft OAuth strategy if credentials are provided
+if (MICROSOFT_SSO_ENABLED) {
+  passport.use(new OIDCStrategy({
+    identityMetadata: `https://login.microsoftonline.com/${MICROSOFT_TENANT_ID}/v2.0/.well-known/openid-configuration`,
+    clientID: MICROSOFT_CLIENT_ID,
+    clientSecret: MICROSOFT_CLIENT_SECRET,
+    responseType: 'code',
+    responseMode: 'query',
+    redirectUrl: `${APP_URL}/api/auth/microsoft/callback`,
+    allowHttpForRedirectUrl: APP_URL.startsWith('http://'),
+    scope: ['openid', 'profile', 'email'],
+    passReqToCallback: false
+  }, (iss, sub, profile, accessToken, refreshToken, done) => {
+    // Extract email from profile
+    const email = profile._json?.preferred_username || profile._json?.email || profile.upn;
+    return done(null, { microsoftId: sub, email, profile });
+  }));
+  console.log('Microsoft SSO enabled');
+} else {
+  console.log('Microsoft SSO disabled (missing credentials)');
+}
 
 // Rate limiting
 const authLimiter = rateLimit({
@@ -336,28 +408,84 @@ app.post('/api/login', authLimiter, (req, res) => {
 });
 
 app.get('/api/me', authenticate, (req, res) => {
-  res.json({ user: req.user });
+  // Get full user data including email and auth_provider
+  const user = db.prepare('SELECT id, username, isAdmin, email, auth_provider FROM users WHERE id = ?').get(req.user.id);
+  res.json({ user: { ...req.user, email: user?.email, auth_provider: user?.auth_provider || 'local' } });
 });
+
+// Microsoft SSO status endpoint
+app.get('/api/auth/microsoft/status', (req, res) => {
+  res.json({ enabled: MICROSOFT_SSO_ENABLED });
+});
+
+// Microsoft OAuth routes
+if (MICROSOFT_SSO_ENABLED) {
+  // Initiate Microsoft OAuth flow
+  app.get('/api/auth/microsoft', passport.authenticate('azuread-openidconnect', { failureRedirect: '/?error=oauth_failed' }));
+
+  // Microsoft OAuth callback
+  app.get('/api/auth/microsoft/callback',
+    passport.authenticate('azuread-openidconnect', { failureRedirect: '/?error=oauth_failed' }),
+    (req, res) => {
+      const { microsoftId, email } = req.user;
+
+      if (!email) {
+        return res.redirect('/?error=no_email');
+      }
+
+      // Find user by email (case-insensitive)
+      const user = db.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)').get(email);
+
+      if (!user) {
+        // User not pre-registered
+        return res.redirect('/?error=account_not_found');
+      }
+
+      // Update microsoft_id if not set
+      if (!user.microsoft_id) {
+        db.prepare('UPDATE users SET microsoft_id = ?, auth_provider = ? WHERE id = ?')
+          .run(microsoftId, 'microsoft', user.id);
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { id: user.id, username: user.username, isAdmin: user.isAdmin },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Redirect with token (frontend will extract and store it)
+      res.redirect(`/?token=${token}`);
+    }
+  );
+}
 
 // Admin routes - user management
 app.get('/api/admin/users', authenticate, requireAdmin, (req, res) => {
-  const users = db.prepare('SELECT id, username, isAdmin, createdAt FROM users').all();
+  const users = db.prepare('SELECT id, username, isAdmin, email, auth_provider, createdAt FROM users').all();
   res.json(users);
 });
 
 app.post('/api/admin/users', authenticate, requireAdmin, (req, res) => {
-  const { username, password, isAdmin = false } = req.body;
+  const { username, password, isAdmin = false, email } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
   try {
     const hashedPassword = bcrypt.hashSync(password, 10);
-    const result = db.prepare('INSERT INTO users (username, password, isAdmin) VALUES (?, ?, ?)').run(username, hashedPassword, isAdmin ? 1 : 0);
-    res.json({ id: result.lastInsertRowid, username, isAdmin });
+    const result = db.prepare('INSERT INTO users (username, password, isAdmin, email) VALUES (?, ?, ?, ?)').run(username, hashedPassword, isAdmin ? 1 : 0, email || null);
+    res.json({ id: result.lastInsertRowid, username, isAdmin, email });
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'Username already exists' });
     res.status(500).json({ error: 'Failed to create user' });
   }
+});
+
+// Update user email (for Microsoft SSO linking)
+app.put('/api/admin/users/:id/email', authenticate, requireAdmin, (req, res) => {
+  const { email } = req.body;
+  db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email || null, req.params.id);
+  res.json({ success: true });
 });
 
 app.delete('/api/admin/users/:id', authenticate, requireAdmin, (req, res) => {

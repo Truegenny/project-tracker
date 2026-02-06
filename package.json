@@ -1,6 +1,6 @@
 {
   "name": "project-tracker",
-  "version": "1.0.0",
+  "version": "2.15.0",
   "description": "Ntiva Integration Project Tracker",
   "main": "server.js",
   "scripts": {
@@ -13,6 +13,9 @@
     "jsonwebtoken": "^9.0.2",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
-    "express-rate-limit": "^7.1.5"
+    "express-rate-limit": "^7.1.5",
+    "passport": "^0.7.0",
+    "passport-azure-ad": "^4.3.5",
+    "express-session": "^1.18.0"
   }
 }
