@@ -1,6 +1,6 @@
 # Project Tracker - Developer Documentation
 
-**Current Version: 2.15.0** | Last Updated: February 6, 2026
+**Current Version: 2.16.0** | Last Updated: February 6, 2026
 
 ## Project Overview
 
@@ -42,6 +42,7 @@
 14. **Project Templates** - Create reusable task templates; user-specific and admin global templates
 15. **Sorting** - Sort projects by Status, Name, Progress, Due Date, Recently Updated, or Priority
 16. **Simple/Detailed View Toggle** - Switch between condensed and full project information
+17. **Project Search** - Filter projects by name, description, owner, or team
 
 ### Export & Reporting
 17. **PDF Export** - Generate professional PDF reports for executive review
@@ -311,6 +312,12 @@ To use with private GitHub repo:
 3. Portainer will authenticate when pulling images
 
 ## Version History (Recent)
+
+### v2.16.0 (Feb 6, 2026)
+- Project search bar in Overview and Edit tabs
+- Filter by project name, description, owner, or team
+- Search persists across tab switches
+- Clear button to reset search
 
 ### v2.15.0 (Feb 6, 2026)
 - Microsoft 365 SSO support (optional)

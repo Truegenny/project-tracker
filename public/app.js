@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.15.0';
+const APP_VERSION = '2.16.0';
 
 // State Management
 let projects = [];
@@ -15,6 +15,7 @@ let demoMode = false;
 let allUsers = [];  // For share dropdown
 let templates = []; // For project templates
 let microsoftSSOEnabled = false; // Microsoft SSO availability
+let searchTerm = ''; // Project search filter
 
 // Apply dark mode on load
 if (darkMode) document.body.classList.add('dark');
@@ -997,6 +998,28 @@ function changeSort(value) {
     render();
 }
 
+// Search/filter projects
+function filterProjects(projectList) {
+    if (!searchTerm.trim()) return projectList;
+    const term = searchTerm.toLowerCase().trim();
+    return projectList.filter(p =>
+        p.name?.toLowerCase().includes(term) ||
+        p.description?.toLowerCase().includes(term) ||
+        p.owner?.toLowerCase().includes(term) ||
+        p.team?.toLowerCase().includes(term)
+    );
+}
+
+function updateSearch(value) {
+    searchTerm = value;
+    render();
+}
+
+function clearSearch() {
+    searchTerm = '';
+    render();
+}
+
 // Login Page
 const LoginPage = () => `
     <div class="min-h-screen flex items-center justify-center bg-gray-50">
@@ -1325,7 +1348,25 @@ const ProjectCard = (project) => {
 
 const OverviewPage = () => {
     const active = activeProjects();
-    const sorted = sortProjects(active);
+    const filtered = filterProjects(active);
+    const sorted = sortProjects(filtered);
+
+    const searchInput = `
+        <div class="relative">
+            <input type="text"
+                id="searchInput"
+                placeholder="Search projects..."
+                value="${searchTerm}"
+                oninput="updateSearch(this.value)"
+                class="pl-8 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 w-48 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <svg class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            ${searchTerm ? `<button onclick="clearSearch()" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>` : ''}
+        </div>
+    `;
 
     const sortDropdown = `
         <select onchange="changeSort(this.value)" class="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white text-gray-700">
@@ -1344,6 +1385,7 @@ const OverviewPage = () => {
 
     const toggleHtml = `
         <div class="flex items-center gap-4">
+            ${searchInput}
             ${sortDropdown}
             <div class="flex items-center gap-3">
                 <span class="text-sm text-gray-500">Detailed</span>
@@ -1355,15 +1397,17 @@ const OverviewPage = () => {
         </div>
     `;
 
+    const noResultsMessage = searchTerm ? `No projects matching "${searchTerm}"` : 'No active projects.';
+
     const detailedView = sorted.length === 0 ? `
         <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <p class="text-gray-500">No active projects.</p>
+            <p class="text-gray-500">${noResultsMessage}</p>
         </div>
     ` : sorted.map(ProjectCard).join('');
 
     const simpleTableView = sorted.length === 0 ? `
         <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <p class="text-gray-500">No active projects.</p>
+            <p class="text-gray-500">${noResultsMessage}</p>
         </div>
     ` : `
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -1494,7 +1538,25 @@ const FinishedPage = () => {
 const EditPage = () => {
     const canEdit = canEditWorkspace();
     const isViewer = currentWorkspace && !currentWorkspace.isOwner && currentWorkspace.permission === 'viewer';
-    const sorted = sortProjects(projects);
+    const filtered = filterProjects(projects);
+    const sorted = sortProjects(filtered);
+
+    const searchInput = `
+        <div class="relative">
+            <input type="text"
+                id="searchInputEdit"
+                placeholder="Search projects..."
+                value="${searchTerm}"
+                oninput="updateSearch(this.value)"
+                class="pl-8 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 w-48 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <svg class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            ${searchTerm ? `<button onclick="clearSearch()" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>` : ''}
+        </div>
+    `;
 
     const sortDropdown = `
         <select onchange="changeSort(this.value)" class="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white text-gray-700">
@@ -1511,12 +1573,15 @@ const EditPage = () => {
         </select>
     `;
 
+    const noResultsMessage = searchTerm ? `No projects matching "${searchTerm}"` : (canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.');
+
     return `
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-3">
                 <h2 class="text-xl font-semibold text-gray-900">Manage Projects</h2>
                 ${isViewer ? '<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">View Only</span>' : ''}
+                ${searchInput}
                 ${sortDropdown}
             </div>
             ${canEdit ? `<button onclick="openProjectModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">+ Add Project</button>` : ''}
@@ -1536,7 +1601,7 @@ const EditPage = () => {
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     ${sorted.length === 0 ? `
-                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">${canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.'}</td></tr>
+                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">${noResultsMessage}</td></tr>
                     ` : sorted.map(p => `
                         <tr class="hover:bg-gray-50 ${p.isLinked ? 'border-l-2 border-l-purple-400' : ''}">
                             <td class="px-4 py-3">
