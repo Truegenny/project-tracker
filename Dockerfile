@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-alpine3.19
 
 LABEL maintainer="project-tracker"
 LABEL description="Ntiva Integration Project Tracker"
