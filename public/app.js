@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.14.0';
+const APP_VERSION = '2.14.1';
 
 // State Management
 let projects = [];
@@ -876,6 +876,22 @@ const getStatusBg = (status) => ({
     'complete': 'bg-green-100 text-green-800'
 }[status] || 'bg-gray-100 text-gray-800');
 
+const getPriorityLabel = (priority) => ({
+    1: 'Critical',
+    2: 'High',
+    3: 'Medium',
+    4: 'Low',
+    5: 'Minimal'
+}[priority] || 'Medium');
+
+const getPriorityBg = (priority) => ({
+    1: 'bg-red-100 text-red-800',
+    2: 'bg-orange-100 text-orange-800',
+    3: 'bg-yellow-100 text-yellow-800',
+    4: 'bg-sky-100 text-sky-800',
+    5: 'bg-gray-100 text-gray-600'
+}[priority] || 'bg-yellow-100 text-yellow-800');
+
 const autoUpdateStatus = (project) => {
     const isPastDue = new Date() > new Date(project.endDate);
     if (project.progress >= 100 && project.status !== 'complete') {
@@ -1152,6 +1168,7 @@ const ProjectCard = (project) => {
                     <button onclick="showAuditModal('${pid}')" class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition" title="View History">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </button>
+                    <span class="px-2 py-1 rounded-full text-xs font-medium ${getPriorityBg(project.priority || 3)}">${getPriorityLabel(project.priority || 3)}</span>
                     <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusBg(project.status)}">${project.status.replace('-', ' ').toUpperCase()}</span>
                 </div>
             </div>
@@ -1281,6 +1298,7 @@ const OverviewPage = () => {
                     <tr>
                         <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Project</th>
                         <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Owner</th>
+                        <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Priority</th>
                         <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
                         <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Progress</th>
                         <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Timeline</th>
@@ -1302,6 +1320,7 @@ const OverviewPage = () => {
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
+                            <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getPriorityBg(p.priority || 3)}">${getPriorityLabel(p.priority || 3)}</span></td>
                             <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
                                 <div class="progress-bar h-6 relative">
@@ -1434,6 +1453,7 @@ const EditPage = () => {
                     <tr>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Project</th>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Owner</th>
+                        <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Priority</th>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Progress</th>
                         <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Dates</th>
@@ -1442,7 +1462,7 @@ const EditPage = () => {
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     ${sorted.length === 0 ? `
-                        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">${canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.'}</td></tr>
+                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">${canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.'}</td></tr>
                     ` : sorted.map(p => `
                         <tr class="hover:bg-gray-50 ${p.isLinked ? 'border-l-2 border-l-purple-400' : ''}">
                             <td class="px-4 py-3">
@@ -1453,6 +1473,7 @@ const EditPage = () => {
                                 <div class="text-sm text-gray-500">${p.tasks?.length || 0} tasks</div>
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700">${p.owner}</td>
+                            <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${getPriorityBg(p.priority || 3)}">${getPriorityLabel(p.priority || 3)}</span></td>
                             <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
                                 <div class="progress-bar h-5 relative">
@@ -2291,6 +2312,13 @@ function showInfo() {
                     <div class="pt-4 border-t">
                         <p class="font-semibold text-gray-700 mb-2">Changelog</p>
                         <div class="space-y-3 text-xs">
+                            <div>
+                                <p class="font-medium text-gray-800">v2.14.1 <span class="text-gray-400">- Feb 4, 2026</span></p>
+                                <ul class="list-disc pl-4 text-gray-500">
+                                    <li>Priority badges visible on project cards and tables</li>
+                                    <li>Color-coded: Critical (red), High (orange), Medium (yellow), Low (blue), Minimal (gray)</li>
+                                </ul>
+                            </div>
                             <div>
                                 <p class="font-medium text-gray-800">v2.14.0 <span class="text-gray-400">- Feb 4, 2026</span></p>
                                 <ul class="list-disc pl-4 text-gray-500">
