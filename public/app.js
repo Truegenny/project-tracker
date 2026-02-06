@@ -1,5 +1,5 @@
 // Version
-const APP_VERSION = '2.16.0';
+const APP_VERSION = '2.17.0';
 
 // State Management
 let projects = [];
@@ -19,6 +19,14 @@ let searchTerm = ''; // Project search filter
 
 // Apply dark mode on load
 if (darkMode) document.body.classList.add('dark');
+
+// Security: HTML escape function to prevent XSS
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
 
 // API Helper
 const api = async (endpoint, options = {}) => {
@@ -95,21 +103,34 @@ async function checkMicrosoftSSO() {
     }
 }
 
-// Handle OAuth callback token from URL
-function handleOAuthCallback() {
+// Handle OAuth callback - exchange code for token
+async function handleOAuthCallback() {
     const params = new URLSearchParams(window.location.search);
-    const urlToken = params.get('token');
+    const code = params.get('code');
     const error = params.get('error');
 
     // Clear URL parameters
-    if (urlToken || error) {
+    if (code || error) {
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    if (urlToken) {
-        token = urlToken;
-        localStorage.setItem('token', token);
-        return true;
+    if (code) {
+        try {
+            // Exchange code for token via secure POST request
+            const res = await fetch('/api/auth/microsoft/exchange', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+            const data = await res.json();
+            if (data.token) {
+                token = data.token;
+                localStorage.setItem('token', token);
+                return true;
+            }
+        } catch (err) {
+            console.error('OAuth token exchange failed:', err);
+        }
     }
 
     if (error) {
@@ -588,7 +609,7 @@ async function showSaveAsTemplateModal(projectOdid) {
                     <div class="bg-gray-50 rounded-lg p-3">
                         <div class="text-sm font-medium text-gray-700 mb-2">Tasks to include (${project.tasks?.length || 0})</div>
                         <ul class="text-sm text-gray-600 space-y-1 max-h-32 overflow-y-auto">
-                            ${(project.tasks || []).map(t => `<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>${t.name}</li>`).join('')}
+                            ${(project.tasks || []).map(t => `<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>${escapeHtml(t.name)}</li>`).join('')}
                             ${(!project.tasks || project.tasks.length === 0) ? '<li class="text-gray-400 italic">No tasks</li>' : ''}
                         </ul>
                     </div>
@@ -644,7 +665,7 @@ async function showManageTemplatesModal() {
                                 ${userTemplates.map(t => `
                                     <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                         <div>
-                                            <div class="font-medium text-gray-900">${t.name}</div>
+                                            <div class="font-medium text-gray-900">${escapeHtml(t.name)}</div>
                                             <div class="text-xs text-gray-500">${t.tasks.length} tasks</div>
                                         </div>
                                         <div class="flex gap-2">
@@ -664,10 +685,10 @@ async function showManageTemplatesModal() {
                                     <div class="flex items-center justify-between p-3 bg-emerald-50 rounded-lg">
                                         <div>
                                             <div class="font-medium text-gray-900 flex items-center gap-2">
-                                                ${t.name}
+                                                ${escapeHtml(t.name)}
                                                 <span class="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded">Global</span>
                                             </div>
-                                            <div class="text-xs text-gray-500">${t.tasks.length} tasks • by ${t.createdByUsername}</div>
+                                            <div class="text-xs text-gray-500">${t.tasks.length} tasks • by ${escapeHtml(t.createdByUsername)}</div>
                                         </div>
                                         ${t.isOwner || currentUser?.isAdmin ? `
                                             <div class="flex gap-2">
@@ -1105,7 +1126,7 @@ const Header = () => {
                             ? '<svg class="w-4 h-4 flex-shrink-0 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>'
                             : '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>'
                         }
-                        <span class="truncate">${currentWorkspace?.name || 'Select Workspace'}${currentWorkspace && !currentWorkspace.isOwner ? ` (${currentWorkspace.ownerUsername})` : ''}</span>
+                        <span class="truncate">${escapeHtml(currentWorkspace?.name || 'Select Workspace')}${currentWorkspace && !currentWorkspace.isOwner ? ` (${escapeHtml(currentWorkspace.ownerUsername)})` : ''}</span>
                         ${currentPermBadge}
                         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
@@ -1114,7 +1135,7 @@ const Header = () => {
                             <div class="px-3 py-2 text-xs text-gray-500 border-b mb-1 font-medium">MY WORKSPACES</div>
                             ${ownedWorkspaces.map(w => `
                                 <button onclick="switchWorkspace(${w.id})" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg ${currentWorkspace?.id === w.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}">
-                                    <span class="truncate">${w.name}</span>
+                                    <span class="truncate">${escapeHtml(w.name)}</span>
                                     ${currentWorkspace?.id === w.id ? '<svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' : ''}
                                 </button>
                             `).join('')}
@@ -1124,8 +1145,8 @@ const Header = () => {
                                     <button onclick="switchWorkspace(${w.id})" class="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg ${currentWorkspace?.id === w.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}">
                                         <div class="flex items-center gap-2 min-w-0">
                                             <svg class="w-4 h-4 flex-shrink-0 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                                            <span class="truncate">${w.name}</span>
-                                            <span class="text-xs text-gray-400">(${w.ownerUsername})</span>
+                                            <span class="truncate">${escapeHtml(w.name)}</span>
+                                            <span class="text-xs text-gray-400">(${escapeHtml(w.ownerUsername)})</span>
                                         </div>
                                         <div class="flex items-center gap-1 flex-shrink-0">
                                             ${getPermissionBadge(w)}
@@ -1253,15 +1274,15 @@ const ProjectCard = (project) => {
             <div class="flex justify-between items-start mb-4">
                 <div>
                     <div class="flex items-center gap-2">
-                        <h3 class="text-xl font-semibold text-gray-900">${project.name}</h3>
+                        <h3 class="text-xl font-semibold text-gray-900">${escapeHtml(project.name)}</h3>
                         ${project.isLinked ? `
-                            <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full flex items-center gap-1" title="Synced from ${project.sourceWorkspaceName}">
+                            <span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full flex items-center gap-1" title="Synced from ${escapeHtml(project.sourceWorkspaceName)}">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
                                 Synced
                             </span>
                         ` : ''}
                     </div>
-                    <p class="text-gray-500 text-sm mt-1">${project.description || ''}</p>
+                    <p class="text-gray-500 text-sm mt-1">${escapeHtml(project.description || '')}</p>
                 </div>
                 <div class="flex items-center gap-2">
                     ${!project.isLinked && canEdit ? `
@@ -1278,12 +1299,12 @@ const ProjectCard = (project) => {
             </div>
             <div class="mb-4 text-xs text-gray-400 flex items-center gap-1 flex-wrap">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Last updated by <span class="font-medium text-gray-500">${lastUpdatedBy}</span> on ${lastUpdatedDate}
-                ${project.isLinked ? `<span class="ml-2 text-purple-500">• From ${project.sourceWorkspaceName}</span>` : ''}
+                Last updated by <span class="font-medium text-gray-500">${escapeHtml(lastUpdatedBy)}</span> on ${lastUpdatedDate}
+                ${project.isLinked ? `<span class="ml-2 text-purple-500">• From ${escapeHtml(project.sourceWorkspaceName)}</span>` : ''}
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
-                <div><span class="text-gray-500">Owner:</span> <span class="font-medium">${project.owner}</span></div>
-                <div><span class="text-gray-500">Team:</span> <span class="font-medium">${project.team || 'N/A'}</span></div>
+                <div><span class="text-gray-500">Owner:</span> <span class="font-medium">${escapeHtml(project.owner)}</span></div>
+                <div><span class="text-gray-500">Team:</span> <span class="font-medium">${escapeHtml(project.team || 'N/A')}</span></div>
                 <div><span class="text-gray-500">Start:</span> <span class="font-medium">${formatDate(project.startDate)}</span></div>
                 <div><span class="text-gray-500">End:</span> <span class="font-medium">${formatDate(project.endDate)}</span></div>
             </div>
@@ -1322,7 +1343,7 @@ const ProjectCard = (project) => {
                             ${project.tasks.map(task => `
                                 <li class="flex items-center gap-2 text-sm ${task.completed ? 'text-gray-400 line-through' : 'text-gray-700'}">
                                     <span class="w-2 h-2 rounded-full ${task.completed ? 'bg-emerald-500' : 'bg-gray-300'}"></span>
-                                    ${task.name}
+                                    ${escapeHtml(task.name)}
                                 </li>
                             `).join('')}
                         </ul>
@@ -1404,7 +1425,7 @@ const OverviewPage = () => {
         </div>
     `;
 
-    const noResultsMessage = searchTerm ? `No projects matching "${searchTerm}"` : 'No active projects.';
+    const noResultsMessage = searchTerm ? `No projects matching "${escapeHtml(searchTerm)}"` : 'No active projects.';
 
     const detailedView = sorted.length === 0 ? `
         <div class="text-center py-12 bg-white rounded-xl border border-gray-200">
@@ -1440,11 +1461,11 @@ const OverviewPage = () => {
                         <tr class="${p.status === 'behind' ? 'bg-red-50' : ''} ${p.isLinked ? 'border-l-2 border-l-purple-400' : ''}">
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
-                                    <span class="font-medium text-gray-900">${p.name}</span>
-                                    ${p.isLinked ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded" title="From ${p.sourceWorkspaceName}">Synced</span>` : ''}
+                                    <span class="font-medium text-gray-900">${escapeHtml(p.name)}</span>
+                                    ${p.isLinked ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded" title="From ${escapeHtml(p.sourceWorkspaceName)}">Synced</span>` : ''}
                                 </div>
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(p.owner)}</td>
                             <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getPriorityBg(p.priority || 3)}">${getPriorityLabel(p.priority || 3)}</span></td>
                             <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
@@ -1464,7 +1485,7 @@ const OverviewPage = () => {
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-xs text-gray-500">
-                                <div class="font-medium text-gray-700">${updatedBy}</div>
+                                <div class="font-medium text-gray-700">${escapeHtml(updatedBy)}</div>
                                 <div>${lastUpdated}</div>
                             </td>
                         </tr>`;
@@ -1519,8 +1540,8 @@ const FinishedPage = () => {
                 <tbody class="divide-y divide-gray-100">
                     ${finished.map(p => `
                         <tr>
-                            <td class="px-4 py-3 font-medium text-gray-900">${p.name}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">${p.owner}</td>
+                            <td class="px-4 py-3 font-medium text-gray-900">${escapeHtml(p.name)}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">${escapeHtml(p.owner)}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">${formatDate(p.completedDate)}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">${daysBetween(p.startDate, p.endDate)} days</td>
                             <td class="px-4 py-3 text-right">
@@ -1580,7 +1601,7 @@ const EditPage = () => {
         </select>
     `;
 
-    const noResultsMessage = searchTerm ? `No projects matching "${searchTerm}"` : (canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.');
+    const noResultsMessage = searchTerm ? `No projects matching "${escapeHtml(searchTerm)}"` : (canEdit ? 'No projects. Click "Add Project" to create one.' : 'No projects in this workspace.');
 
     return `
     <div class="max-w-7xl mx-auto px-4 py-8">
@@ -1613,12 +1634,12 @@ const EditPage = () => {
                         <tr class="hover:bg-gray-50 ${p.isLinked ? 'border-l-2 border-l-purple-400' : ''}">
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
-                                    <span class="font-medium text-gray-900">${p.name}</span>
-                                    ${p.isLinked ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded" title="From ${p.sourceWorkspaceName}">Synced</span>` : ''}
+                                    <span class="font-medium text-gray-900">${escapeHtml(p.name)}</span>
+                                    ${p.isLinked ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded" title="From ${escapeHtml(p.sourceWorkspaceName)}">Synced</span>` : ''}
                                 </div>
                                 <div class="text-sm text-gray-500">${p.tasks?.length || 0} tasks</div>
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-700">${p.owner}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(p.owner)}</td>
                             <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${getPriorityBg(p.priority || 3)}">${getPriorityLabel(p.priority || 3)}</span></td>
                             <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusBg(p.status)}">${p.status.replace('-', ' ')}</span></td>
                             <td class="px-4 py-3">
@@ -1681,16 +1702,21 @@ const AdminPage = () => `
 async function loadUsers() {
     try {
         const users = await api('/admin/users');
-        document.getElementById('usersList').innerHTML = users.map(u => `
+        document.getElementById('usersList').innerHTML = users.map(u => {
+            const safeUsername = escapeHtml(u.username);
+            const safeEmail = escapeHtml(u.email || '');
+            const jsUsername = JSON.stringify(u.username);
+            const jsEmail = JSON.stringify(u.email || '');
+            return `
             <tr class="hover:bg-gray-50">
                 <td class="px-4 py-3">
-                    <div class="font-medium text-gray-900">${u.username}</div>
+                    <div class="font-medium text-gray-900">${safeUsername}</div>
                     ${u.auth_provider === 'microsoft' ? '<span class="text-xs text-blue-600">Microsoft SSO</span>' : ''}
                 </td>
                 <td class="px-4 py-3">
                     ${u.email ? `
-                        <span class="text-sm text-gray-700">${u.email}</span>
-                        <button onclick="editUserEmail(${u.id}, '${u.email || ''}')" class="ml-1 text-gray-400 hover:text-gray-600">
+                        <span class="text-sm text-gray-700">${safeEmail}</span>
+                        <button onclick="editUserEmail(${u.id}, ${jsEmail})" class="ml-1 text-gray-400 hover:text-gray-600">
                             <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         </button>
                     ` : `
@@ -1700,13 +1726,13 @@ async function loadUsers() {
                 <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${u.isAdmin ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}">${u.isAdmin ? 'Admin' : 'User'}</span></td>
                 <td class="px-4 py-3 text-sm text-gray-500">${formatDate(u.createdAt)}</td>
                 <td class="px-4 py-3 text-right">
-                    <button onclick="resetPassword(${u.id}, '${u.username}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium mr-2">Reset Password</button>
-                    ${u.id !== currentUser.id ? `<button onclick="deleteUser(${u.id}, '${u.username}')" class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>` : ''}
+                    <button onclick="resetPassword(${u.id}, ${jsUsername})" class="text-blue-600 hover:text-blue-800 text-sm font-medium mr-2">Reset Password</button>
+                    ${u.id !== currentUser.id ? `<button onclick="deleteUser(${u.id}, ${jsUsername})" class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>` : ''}
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
     } catch (err) {
-        document.getElementById('usersList').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">${err.message}</td></tr>`;
+        document.getElementById('usersList').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">${escapeHtml(err.message)}</td></tr>`;
     }
 }
 
@@ -1802,12 +1828,12 @@ const ProjectModal = (project = null) => {
                             <option value="">Select a template...</option>
                             ${templates.filter(t => !t.isGlobal).length > 0 ? `
                                 <optgroup label="My Templates">
-                                    ${templates.filter(t => !t.isGlobal).map(t => `<option value="${t.id}">${t.name} (${t.tasks.length} tasks)</option>`).join('')}
+                                    ${templates.filter(t => !t.isGlobal).map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.tasks.length} tasks)</option>`).join('')}
                                 </optgroup>
                             ` : ''}
                             ${templates.filter(t => t.isGlobal).length > 0 ? `
                                 <optgroup label="Global Templates">
-                                    ${templates.filter(t => t.isGlobal).map(t => `<option value="${t.id}">${t.name} (${t.tasks.length} tasks)</option>`).join('')}
+                                    ${templates.filter(t => t.isGlobal).map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.tasks.length} tasks)</option>`).join('')}
                                 </optgroup>
                             ` : ''}
                         </select>
@@ -2971,8 +2997,8 @@ document.addEventListener('click', (e) => {
     // Check Microsoft SSO availability
     await checkMicrosoftSSO();
 
-    // Handle OAuth callback (token in URL)
-    handleOAuthCallback();
+    // Handle OAuth callback (exchange code for token)
+    await handleOAuthCallback();
 
     if (await checkAuth()) {
         await loadWorkspaces();

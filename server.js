@@ -12,8 +12,19 @@ const { OIDCStrategy } = require('passport-azure-ad');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// Security: Require JWT_SECRET in production
+const JWT_SECRET = process.env.JWT_SECRET || (IS_PRODUCTION ? null : 'change-this-secret-in-production');
+if (IS_PRODUCTION && !JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable must be set in production');
+  process.exit(1);
+}
+
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+if (IS_PRODUCTION && ADMIN_PASSWORD === 'admin123') {
+  console.warn('WARNING: Using default admin password in production is insecure');
+}
 
 // Microsoft OAuth configuration
 const MICROSOFT_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID;
@@ -21,6 +32,9 @@ const MICROSOFT_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
 const MICROSOFT_TENANT_ID = process.env.MICROSOFT_TENANT_ID;
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 const MICROSOFT_SSO_ENABLED = !!(MICROSOFT_CLIENT_ID && MICROSOFT_CLIENT_SECRET && MICROSOFT_TENANT_ID);
+
+// Temporary auth codes for secure OAuth token exchange (codes expire after 60 seconds)
+const authCodes = new Map();
 
 // Database setup
 const db = new Database('/data/projects.db');
@@ -217,9 +231,23 @@ if (!adminExists) {
 }
 
 // Middleware
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
-app.use(express.json());
+app.use(helmet({
+  contentSecurityPolicy: IS_PRODUCTION ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com", "https://cdnjs.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.tailwindcss.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", "https://login.microsoftonline.com"]
+    }
+  } : false
+}));
+app.use(cors({
+  origin: IS_PRODUCTION ? process.env.APP_URL : true,
+  credentials: true
+}));
+app.use(express.json({ limit: '1mb' })); // Limit request body size
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Session middleware (required for OAuth state)
@@ -227,7 +255,12 @@ app.use(session({
   secret: JWT_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, maxAge: 10 * 60 * 1000 } // 10 min for OAuth flow only
+  cookie: {
+    secure: IS_PRODUCTION, // Use secure cookies in production (requires HTTPS)
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 10 * 60 * 1000 // 10 min for OAuth flow only
+  }
 }));
 
 // Initialize passport
@@ -266,6 +299,29 @@ const authLimiter = rateLimit({
   max: 10, // 10 attempts
   message: { error: 'Too many login attempts, please try again later' }
 });
+
+// General API rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  message: { error: 'Too many requests, please slow down' }
+});
+app.use('/api/', apiLimiter);
+
+// Input validation helpers
+const MAX_TEXT_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 5000;
+
+function validateString(str, maxLength = MAX_TEXT_LENGTH) {
+  if (typeof str !== 'string') return false;
+  if (str.length > maxLength) return false;
+  return true;
+}
+
+function parseIntSafe(value) {
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) ? null : parsed;
+}
 
 // Auth middleware
 const authenticate = (req, res, next) => {
@@ -447,17 +503,45 @@ if (MICROSOFT_SSO_ENABLED) {
           .run(microsoftId, 'microsoft', user.id);
       }
 
-      // Generate JWT token
+      // Generate a short-lived authorization code instead of exposing JWT in URL
+      const code = require('crypto').randomBytes(32).toString('hex');
       const token = jwt.sign(
         { id: user.id, username: user.username, isAdmin: user.isAdmin },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Redirect with token (frontend will extract and store it)
-      res.redirect(`/?token=${token}`);
+      // Store code with token (expires in 60 seconds)
+      authCodes.set(code, { token, expires: Date.now() + 60000 });
+
+      // Clean up expired codes periodically
+      for (const [key, value] of authCodes.entries()) {
+        if (value.expires < Date.now()) authCodes.delete(key);
+      }
+
+      // Redirect with code (not the actual token)
+      res.redirect(`/?code=${code}`);
     }
   );
+
+  // Exchange authorization code for JWT token
+  app.post('/api/auth/microsoft/exchange', (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code required' });
+
+    const authData = authCodes.get(code);
+    if (!authData) return res.status(401).json({ error: 'Invalid or expired code' });
+
+    if (authData.expires < Date.now()) {
+      authCodes.delete(code);
+      return res.status(401).json({ error: 'Code expired' });
+    }
+
+    // Delete the code after use (one-time use)
+    authCodes.delete(code);
+
+    res.json({ token: authData.token });
+  });
 }
 
 // Admin routes - user management
@@ -469,7 +553,10 @@ app.get('/api/admin/users', authenticate, requireAdmin, (req, res) => {
 app.post('/api/admin/users', authenticate, requireAdmin, (req, res) => {
   const { username, password, isAdmin = false, email } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  if (!validateString(username, 50)) return res.status(400).json({ error: 'Username must be 50 characters or less' });
+  if (!validateString(password, 100)) return res.status(400).json({ error: 'Password too long' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (email && !validateString(email, 255)) return res.status(400).json({ error: 'Email must be 255 characters or less' });
 
   try {
     const hashedPassword = bcrypt.hashSync(password, 10);
@@ -489,7 +576,8 @@ app.put('/api/admin/users/:id/email', authenticate, requireAdmin, (req, res) => 
 });
 
 app.delete('/api/admin/users/:id', authenticate, requireAdmin, (req, res) => {
-  const userId = parseInt(req.params.id);
+  const userId = parseIntSafe(req.params.id);
+  if (userId === null) return res.status(400).json({ error: 'Invalid user ID' });
   if (userId === req.user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
 
   // Delete all workspace shares where user is involved (shared with them or they shared)
@@ -720,6 +808,12 @@ app.get('/api/projects', authenticate, (req, res) => {
 app.post('/api/projects', authenticate, (req, res) => {
   const { name, description, owner, team, startDate, endDate, status, progress, tasks, notes, completedDate, workspaceId } = req.body;
   if (!name || !owner || !startDate || !endDate) return res.status(400).json({ error: 'Missing required fields' });
+
+  // Input validation
+  if (!validateString(name, 200)) return res.status(400).json({ error: 'Project name must be 200 characters or less' });
+  if (description && !validateString(description, MAX_DESCRIPTION_LENGTH)) return res.status(400).json({ error: 'Description too long' });
+  if (!validateString(owner, 100)) return res.status(400).json({ error: 'Owner must be 100 characters or less' });
+  if (team && !validateString(team, 200)) return res.status(400).json({ error: 'Team must be 200 characters or less' });
 
   // Check permission if workspaceId is provided
   if (workspaceId) {

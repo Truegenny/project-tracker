@@ -1,6 +1,6 @@
 # Project Tracker - Developer Documentation
 
-**Current Version: 2.16.0** | Last Updated: February 6, 2026
+**Current Version: 2.17.0** | Last Updated: February 6, 2026
 
 ## Project Overview
 
@@ -312,6 +312,16 @@ To use with private GitHub repo:
 3. Portainer will authenticate when pulling images
 
 ## Version History (Recent)
+
+### v2.17.0 (Feb 6, 2026)
+- **Security**: XSS protection with HTML escaping for all user-rendered data
+- **Security**: OAuth token exchange via secure POST instead of URL parameter
+- **Security**: Input validation with length limits on all text fields
+- **Security**: Production mode requires JWT_SECRET environment variable
+- **Security**: Secure session cookies (httpOnly, sameSite) in production
+- **Security**: Content Security Policy headers in production
+- **Security**: CORS restrictions in production
+- **Security**: General API rate limiting (100 req/min)
 
 ### v2.16.0 (Feb 6, 2026)
 - Project search bar in Overview and Edit tabs
