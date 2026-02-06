@@ -1012,7 +1012,14 @@ function filterProjects(projectList) {
 
 function updateSearch(value) {
     searchTerm = value;
+    const cursorPos = document.activeElement?.selectionStart;
     render();
+    // Restore focus to search input after render
+    const input = document.getElementById('searchInput') || document.getElementById('searchInputEdit');
+    if (input) {
+        input.focus();
+        if (cursorPos !== undefined) input.setSelectionRange(cursorPos, cursorPos);
+    }
 }
 
 function clearSearch() {
